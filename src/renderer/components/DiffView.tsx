@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { DiffEditor, loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 import { useGitStore } from '../stores/gitStore'
@@ -22,21 +22,25 @@ function detectLanguage(filePath: string): string {
 
 export function DiffView() {
   const {
-    selectedFile, repoPath, diffMode, setDiffMode,
-    commitDiffOriginal, commitDiffModified, commitDiffPath, commitDiffHash
+    selectedFile, repoPath, diffMode, setDiffMode, setSelectedFile,
+    commitDiffOriginal, commitDiffModified, commitDiffPath, commitDiffHash, clearCommitDiff
   } = useGitStore()
 
   const [originalContent, setOriginalContent] = useState('')
   const [modifiedContent, setModifiedContent] = useState('')
 
-  // Determine what to show: commit diff or working tree diff
   const isCommitDiff = !!commitDiffPath
   const displayPath = isCommitDiff ? commitDiffPath : selectedFile?.path
   const hasContent = isCommitDiff || !!selectedFile
 
-  // Load working tree file contents
+  // Close diff: clear both commit diff and selected file
+  const closeDiff = () => {
+    if (isCommitDiff) clearCommitDiff()
+    else setSelectedFile(null)
+  }
+
   useEffect(() => {
-    if (isCommitDiff) return // commit diff is handled below
+    if (isCommitDiff) return
     if (!selectedFile || !repoPath) {
       setOriginalContent('')
       setModifiedContent('')
@@ -69,7 +73,6 @@ export function DiffView() {
     load()
   }, [selectedFile?.path, selectedFile?.staged, selectedFile?.status, repoPath, isCommitDiff])
 
-  // Final content to display
   const origDisplay = isCommitDiff ? commitDiffOriginal : originalContent
   const modDisplay = isCommitDiff ? commitDiffModified : modifiedContent
   const language = displayPath ? detectLanguage(displayPath) : 'plaintext'
@@ -108,6 +111,14 @@ export function DiffView() {
           <button onClick={() => setDiffMode('side-by-side')}
             className={`px-2 py-0.5 rounded transition-colors ${diffMode === 'side-by-side' ? 'bg-bg-active text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'}`}>
             并排
+          </button>
+          {/* Close button */}
+          <button onClick={closeDiff}
+            className="ml-1 w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors"
+            title="关闭差异">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
           </button>
         </div>
       </div>

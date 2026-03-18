@@ -151,18 +151,31 @@ function LogPanel() {
           const isCurrent = b.name === currentBranch
           const isLocal = !b.isRemote
           const items: MenuItem[] = []
-          if (!isCurrent) items.push({ label: '检出', onClick: () => { switchBranch(b.name); setBranchCtx(null) }, separator: false })
-          if (!isCurrent && isLocal) {
+          if (!isCurrent) items.push({ label: '检出', onClick: () => { switchBranch(b.name); setBranchCtx(null) } })
+          // 新建分支
+          items.push({ label: '', onClick: () => {}, separator: true })
+          items.push({ label: '从此分支新建分支...', onClick: () => {
+            setInputDialog({ title: `从 ${b.name} 新建分支`, placeholder: '新分支名称',
+              onConfirm: (name) => { createBranch(name, b.name); setInputDialog(null) } })
+            setBranchCtx(null)
+          }})
+          items.push({ label: '新建标签...', onClick: () => {
+            setInputDialog({ title: `在 ${b.name} 新建标签`, placeholder: '标签名称',
+              onConfirm: (name) => { createTag(name, b.name); setInputDialog(null) } })
+            setBranchCtx(null)
+          }})
+          if (!isCurrent) {
             items.push({ label: '', onClick: () => {}, separator: true })
             items.push({ label: '合并到当前分支', onClick: () => { mergeBranch(b.name); setBranchCtx(null) } })
             items.push({ label: '变基当前分支到此', onClick: () => { rebaseBranch(b.name); setBranchCtx(null) } })
+            items.push({ label: '与本地比较', onClick: () => { /* compare is implicit via checkout */ setBranchCtx(null) } })
           }
           if (isCurrent) {
             items.push({ label: '', onClick: () => {}, separator: true })
             items.push({ label: '推送', onClick: () => { doPush(); setBranchCtx(null) } })
             items.push({ label: '拉取', onClick: () => { doPull(); setBranchCtx(null) } })
           }
-          if (!isCurrent && isLocal) {
+          if (isLocal) {
             items.push({ label: '', onClick: () => {}, separator: true })
             items.push({ label: '重命名...', onClick: () => { setRenameDialog({ branchName: b.name }); setBranchCtx(null) } })
           }
@@ -217,13 +230,32 @@ function LogPanel() {
                 onClick={() => onSelectCommit(c)}
                 onContextMenu={e => { e.preventDefault(); setCommitCtx({ x: e.clientX, y: e.clientY, commit: c }) }}>
                 {/* Message */}
-                <span className="flex-1 min-w-0 truncate text-text-primary px-1">{c.message}</span>
-                {/* Refs */}
-                {c.refs && c.refs.split(',').map(r => r.trim()).filter(Boolean).map((ref, i) => (
-                  <span key={i} className="text-[9px] bg-bg-tertiary text-text-accent px-1 rounded flex-shrink-0 mr-0.5">
-                    {ref.replace('HEAD -> ', '').replace('origin/', '⬆')}
-                  </span>
-                ))}
+                <span className="flex-1 min-w-0 truncate text-text-primary px-1 relative group/row">
+                  {c.message}
+                  {/* Refs: show first ref inline, rest on hover */}
+                  {c.refs && (() => {
+                    const refs = c.refs.split(',').map(r => r.trim()).filter(Boolean)
+                    if (refs.length === 0) return null
+                    const first = refs[0].replace('HEAD -> ', '').replace('origin/', '⬆')
+                    return (
+                      <>
+                        <span className="ml-1 text-[9px] bg-bg-tertiary text-text-accent px-1 rounded inline">{first}</span>
+                        {refs.length > 1 && (
+                          <span className="ml-0.5 text-[9px] text-text-secondary cursor-default">
+                            +{refs.length - 1}
+                            <span className="absolute left-0 top-full z-50 hidden group-hover/row:flex flex-wrap gap-0.5 bg-bg-tertiary border border-border rounded p-1 shadow-lg max-w-[300px]">
+                              {refs.map((ref, i) => (
+                                <span key={i} className="text-[9px] bg-bg-hover text-text-accent px-1 py-0.5 rounded whitespace-nowrap">
+                                  {ref.replace('HEAD -> ', '').replace('origin/', '⬆')}
+                                </span>
+                              ))}
+                            </span>
+                          </span>
+                        )}
+                      </>
+                    )
+                  })()}
+                </span>
                 <span className="text-text-secondary flex-shrink-0 w-[65px] truncate text-right text-[10px] pr-1">{c.author_name}</span>
                 <span className="text-text-secondary flex-shrink-0 w-[85px] text-right text-[10px] pr-2">
                   {new Date(c.date).toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
@@ -269,18 +301,25 @@ function LogPanel() {
       {/* Commit row context menu */}
       {commitCtx && (() => {
         const c = commitCtx.commit
+        const shortH = c.hash.substring(0, 8)
         const items: MenuItem[] = [
-          { label: '复制提交哈希', onClick: () => { navigator.clipboard.writeText(c.hash); setCommitCtx(null) }, separator: false },
-          { label: '复制提交信息', onClick: () => { navigator.clipboard.writeText(c.message); setCommitCtx(null) }, separator: false },
+          { label: '复制修订号', onClick: () => { navigator.clipboard.writeText(c.hash); setCommitCtx(null) } },
+          { label: '复制提交信息', onClick: () => { navigator.clipboard.writeText(c.message); setCommitCtx(null) } },
           { label: '', onClick: () => {}, separator: true },
           { label: '检出此提交', onClick: () => { switchBranch(c.hash); setCommitCtx(null) } },
           { label: '优选 (Cherry-pick)', onClick: () => { cherryPick(c.hash); setCommitCtx(null) } },
           { label: '还原提交 (Revert)', onClick: () => { revertCommit(c.hash); setCommitCtx(null) } },
           { label: '', onClick: () => {}, separator: true },
-          { label: '将当前分支重置到此处...', onClick: () => { setResetDialog({ hash: c.hash, shortHash: c.hash.substring(0, 8) }); setCommitCtx(null) }, danger: true },
+          { label: `将当前分支重置到此处 (${shortH})...`, onClick: () => { setResetDialog({ hash: c.hash, shortHash: shortH }); setCommitCtx(null) }, danger: true },
           { label: '', onClick: () => {}, separator: true },
-          { label: '从此提交新建分支...', onClick: () => { setInputDialog({ title: '从此提交新建分支', placeholder: '分支名称', onConfirm: (name) => { createBranch(name, c.hash); setInputDialog(null) } }); setCommitCtx(null) } },
-          { label: '新建标签...', onClick: () => { setInputDialog({ title: '新建标签', placeholder: '标签名称', onConfirm: (name) => { createTag(name, c.hash); setInputDialog(null) } }); setCommitCtx(null) } },
+          { label: '从此提交新建分支...', onClick: () => { setInputDialog({ title: `从 ${shortH} 新建分支`, placeholder: '分支名称', onConfirm: (name) => { createBranch(name, c.hash); setInputDialog(null) } }); setCommitCtx(null) } },
+          { label: '新建标签...', onClick: () => { setInputDialog({ title: `在 ${shortH} 新建标签`, placeholder: '标签名称', onConfirm: (name) => { createTag(name, c.hash); setInputDialog(null) } }); setCommitCtx(null) } },
+          { label: '', onClick: () => {}, separator: true },
+          { label: '与工作区比较', onClick: () => {
+            // Show diff of this commit vs working tree for first changed file
+            if (commitFiles.length > 0) showCommitFileDiff(c.hash, commitFiles[0])
+            setCommitCtx(null)
+          }},
         ]
         return <ContextMenu x={commitCtx.x} y={commitCtx.y} items={items} onClose={() => setCommitCtx(null)} />
       })()}
