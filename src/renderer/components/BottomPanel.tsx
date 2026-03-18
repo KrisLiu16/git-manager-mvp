@@ -150,39 +150,56 @@ function LogPanel() {
           const b = branchCtx.branch
           const isCurrent = b.name === currentBranch
           const isLocal = !b.isRemote
+          const displayName = isLocal ? b.name : b.name.replace(/^remotes\/[^/]+\//, '')
           const items: MenuItem[] = []
-          if (!isCurrent) items.push({ label: '检出', onClick: () => { switchBranch(b.name); setBranchCtx(null) } })
-          // 新建分支
+
+          // 检出（远程分支会自动创建本地跟踪分支）
+          if (!isCurrent) {
+            items.push({ label: isLocal ? '检出' : `检出并创建本地分支 '${displayName}'`,
+              onClick: () => { switchBranch(b.name); setBranchCtx(null) } })
+          }
+
+          // 新建
           items.push({ label: '', onClick: () => {}, separator: true })
           items.push({ label: '从此分支新建分支...', onClick: () => {
-            setInputDialog({ title: `从 ${b.name} 新建分支`, placeholder: '新分支名称',
+            setInputDialog({ title: `从 ${displayName} 新建分支`, placeholder: '新分支名称',
               onConfirm: (name) => { createBranch(name, b.name); setInputDialog(null) } })
             setBranchCtx(null)
           }})
           items.push({ label: '新建标签...', onClick: () => {
-            setInputDialog({ title: `在 ${b.name} 新建标签`, placeholder: '标签名称',
+            setInputDialog({ title: `在 ${displayName} 新建标签`, placeholder: '标签名称',
               onConfirm: (name) => { createTag(name, b.name); setInputDialog(null) } })
             setBranchCtx(null)
           }})
+
+          // 合并/变基（仅非当前）
           if (!isCurrent) {
             items.push({ label: '', onClick: () => {}, separator: true })
-            items.push({ label: '合并到当前分支', onClick: () => { mergeBranch(b.name); setBranchCtx(null) } })
-            items.push({ label: '变基当前分支到此', onClick: () => { rebaseBranch(b.name); setBranchCtx(null) } })
-            items.push({ label: '与本地比较', onClick: () => { /* compare is implicit via checkout */ setBranchCtx(null) } })
+            items.push({ label: `将 '${displayName}' 合并到 '${currentBranch}'`,
+              onClick: () => { mergeBranch(b.name); setBranchCtx(null) } })
+            items.push({ label: `将 '${currentBranch}' 变基到 '${displayName}'`,
+              onClick: () => { rebaseBranch(b.name); setBranchCtx(null) } })
           }
+
+          // 推送/拉取（当前分支）
           if (isCurrent) {
             items.push({ label: '', onClick: () => {}, separator: true })
-            items.push({ label: '推送', onClick: () => { doPush(); setBranchCtx(null) } })
-            items.push({ label: '拉取', onClick: () => { doPull(); setBranchCtx(null) } })
+            items.push({ label: '推送...', onClick: () => { doPush(); setBranchCtx(null) } })
+            items.push({ label: '拉取...', onClick: () => { doPull(); setBranchCtx(null) } })
           }
+
+          // 重命名（本地分支）
           if (isLocal) {
             items.push({ label: '', onClick: () => {}, separator: true })
             items.push({ label: '重命名...', onClick: () => { setRenameDialog({ branchName: b.name }); setBranchCtx(null) } })
           }
+
+          // 删除（非当前本地分支）
           if (!isCurrent && isLocal) {
             items.push({ label: '', onClick: () => {}, separator: true })
-            items.push({ label: '删除分支', onClick: () => { deleteBranch(b.name); setBranchCtx(null) }, danger: true })
+            items.push({ label: `删除分支 '${displayName}'`, onClick: () => { deleteBranch(b.name); setBranchCtx(null) }, danger: true })
           }
+
           return <ContextMenu x={branchCtx.x} y={branchCtx.y} items={items} onClose={() => setBranchCtx(null)} />
         })()}
       </div>

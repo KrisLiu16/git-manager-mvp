@@ -387,10 +387,12 @@ export const useGitStore = create<GitStore>((set, get) => {
       if (!proj) return
       try {
         const result = await window.git.branches(proj.repoPath)
-        const branches: BranchInfo[] = Object.entries(result.branches).map(([name, info]: [string, any]) => ({
-          name, current: info.current, commit: info.commit, label: info.label,
-          isRemote: name.startsWith('remotes/')
-        }))
+        const branches: BranchInfo[] = Object.entries(result.branches)
+          .filter(([name]) => !name.endsWith('/HEAD')) // filter out remotes/origin/HEAD
+          .map(([name, info]: [string, any]) => ({
+            name, current: info.current, commit: info.commit, label: info.label,
+            isRemote: name.startsWith('remotes/')
+          }))
         updateProject({ branches })
       } catch {
         updateProject({ branches: [] })

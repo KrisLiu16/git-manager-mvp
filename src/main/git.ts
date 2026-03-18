@@ -119,10 +119,26 @@ export function registerGitHandlers(): void {
     }
   })
 
-  // Switch branch
+  // Switch branch — for remote branches, create local tracking branch (like GoLand)
   ipcMain.handle('git:checkout', async (_event, repoPath: string, branch: string) => {
     const git = getGit(repoPath)
-    await git.checkout(branch)
+    if (branch.startsWith('remotes/')) {
+      // e.g. "remotes/origin/feat/xxx" → local name "feat/xxx", track "origin/feat/xxx"
+      const withoutRemotes = branch.replace('remotes/', '') // "origin/feat/xxx"
+      const slashIdx = withoutRemotes.indexOf('/')
+      const localName = withoutRemotes.substring(slashIdx + 1) // "feat/xxx"
+      // Check if local branch already exists
+      try {
+        await git.raw(['rev-parse', '--verify', localName])
+        // Local branch exists, just checkout
+        await git.checkout(localName)
+      } catch {
+        // Create local tracking branch
+        await git.raw(['checkout', '-b', localName, '--track', branch])
+      }
+    } else {
+      await git.checkout(branch)
+    }
   })
 
   // Delete branch
