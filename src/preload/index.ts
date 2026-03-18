@@ -27,18 +27,21 @@ const gitApi = {
   stashDrop: (repoPath: string, index: number) => ipcRenderer.invoke('git:stashDrop', repoPath, index),
   isRepo: (repoPath: string) => ipcRenderer.invoke('git:isRepo', repoPath),
   remotes: (repoPath: string) => ipcRenderer.invoke('git:remotes', repoPath),
-  currentBranch: (repoPath: string) => ipcRenderer.invoke('git:currentBranch', repoPath)
+  currentBranch: (repoPath: string) => ipcRenderer.invoke('git:currentBranch', repoPath),
+  blame: (repoPath: string, filePath: string) => ipcRenderer.invoke('git:blame', repoPath, filePath)
 }
 
 const windowApi = {
   openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
   openRepo: (repoPath: string) => ipcRenderer.invoke('window:openRepo', repoPath),
   setTitle: (title: string) => ipcRenderer.invoke('window:setTitle', title),
+  addProjectWatcher: (repoPath: string) => ipcRenderer.invoke('watcher:add', repoPath),
+  removeProjectWatcher: (repoPath: string) => ipcRenderer.invoke('watcher:remove', repoPath),
   onRepoOpened: (callback: (repoPath: string) => void) => {
     ipcRenderer.on('repo:opened', (_event, path) => callback(path))
   },
-  onRepoChanged: (callback: () => void) => {
-    ipcRenderer.on('repo:changed', () => callback())
+  onRepoChanged: (callback: (repoPath: string) => void) => {
+    ipcRenderer.on('repo:changed', (_event, path) => callback(path))
   }
 }
 

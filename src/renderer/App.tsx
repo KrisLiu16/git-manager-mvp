@@ -1,33 +1,42 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useGitStore } from './stores/gitStore'
 import { Layout } from './components/Layout'
 import { WelcomeScreen } from './components/WelcomeScreen'
 
 export default function App() {
-  const { repoPath, setRepoPath, refreshAll, setError } = useGitStore()
+  const { projects, addProject, refreshAll, setError } = useGitStore()
+  const autoFetchRef = useRef<number | null>(null)
 
   useEffect(() => {
     window.windowApi.onRepoOpened(async (path: string) => {
       const isRepo = await window.git.isRepo(path)
       if (isRepo) {
-        setRepoPath(path)
+        addProject(path)
       } else {
-        setError(`"${path}" is not a git repository`)
+        setError(`"${path}" 不是一个 Git 仓库`)
       }
     })
 
-    window.windowApi.onRepoChanged(() => {
+    window.windowApi.onRepoChanged((_path: string) => {
       refreshAll()
     })
+
+    // Listen for auto-fetch completion
+    const { ipcRenderer } = window.electron
+    if (ipcRenderer) {
+      ipcRenderer.on('auto:fetched', () => {
+        refreshAll()
+      })
+    }
   }, [])
 
   useEffect(() => {
-    if (repoPath) {
+    if (projects.length > 0) {
       refreshAll()
     }
-  }, [repoPath])
+  }, [projects.length])
 
-  if (!repoPath) {
+  if (projects.length === 0) {
     return <WelcomeScreen />
   }
 

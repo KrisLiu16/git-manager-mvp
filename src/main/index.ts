@@ -3,10 +3,16 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerGitHandlers } from './git'
 import { FileWatcher } from './watcher'
+import simpleGit from 'simple-git'
 
-const windows = new Map<number, { path: string; watcher: FileWatcher }>()
+// Per-window watchers: windowId -> Map<repoPath, watcher>
+const windowWatchers = new Map<number, Map<string, FileWatcher>>()
 
-function createWindow(repoPath?: string): BrowserWindow {
+// Auto-fetch interval (3 minutes)
+const AUTO_FETCH_INTERVAL = 3 * 60 * 1000
+let autoFetchTimer: NodeJS.Timeout | null = null
+
+function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -21,12 +27,7 @@ function createWindow(repoPath?: string): BrowserWindow {
     }
   })
 
-  if (repoPath) {
-    const name = repoPath.split('/').pop() || repoPath
-    win.setTitle(`Git Manager - ${name}`)
-  } else {
-    win.setTitle('Git Manager')
-  }
+  win.setTitle('Git Manager')
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL'])
@@ -34,29 +35,44 @@ function createWindow(repoPath?: string): BrowserWindow {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
-  if (repoPath) {
-    win.webContents.once('did-finish-load', () => {
-      win.webContents.send('repo:opened', repoPath)
-    })
-
-    const watcher = new FileWatcher(repoPath, () => {
-      if (!win.isDestroyed()) {
-        win.webContents.send('repo:changed')
-      }
-    })
-    watcher.start()
-    windows.set(win.id, { path: repoPath, watcher })
-  }
+  windowWatchers.set(win.id, new Map())
 
   win.on('closed', () => {
-    const data = windows.get(win.id)
-    if (data) {
-      data.watcher.stop()
-      windows.delete(win.id)
+    const watchers = windowWatchers.get(win.id)
+    if (watchers) {
+      for (const w of watchers.values()) w.stop()
+      windowWatchers.delete(win.id)
     }
   })
 
   return win
+}
+
+function addWatcherForWindow(win: BrowserWindow, repoPath: string): void {
+  let watchers = windowWatchers.get(win.id)
+  if (!watchers) {
+    watchers = new Map()
+    windowWatchers.set(win.id, watchers)
+  }
+  if (watchers.has(repoPath)) return
+
+  const watcher = new FileWatcher(repoPath, () => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('repo:changed', repoPath)
+    }
+  })
+  watcher.start()
+  watchers.set(repoPath, watcher)
+}
+
+function removeWatcherForWindow(win: BrowserWindow, repoPath: string): void {
+  const watchers = windowWatchers.get(win.id)
+  if (!watchers) return
+  const watcher = watchers.get(repoPath)
+  if (watcher) {
+    watcher.stop()
+    watchers.delete(repoPath)
+  }
 }
 
 function buildMenu(): void {
@@ -81,7 +97,11 @@ function buildMenu(): void {
               title: '打开 Git 仓库'
             })
             if (!result.canceled && result.filePaths[0]) {
-              createWindow(result.filePaths[0])
+              // Send to the focused window (add as tab) instead of creating new window
+              const focusedWin = BrowserWindow.getFocusedWindow()
+              if (focusedWin) {
+                focusedWin.webContents.send('repo:opened', result.filePaths[0])
+              }
             }
           }
         },
@@ -133,6 +153,17 @@ function buildMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
+// Watcher management IPC
+ipcMain.handle('watcher:add', async (event, repoPath: string) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (win) addWatcherForWindow(win, repoPath)
+})
+
+ipcMain.handle('watcher:remove', async (event, repoPath: string) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (win) removeWatcherForWindow(win, repoPath)
+})
+
 ipcMain.handle('dialog:openDirectory', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory'],
@@ -144,8 +175,12 @@ ipcMain.handle('dialog:openDirectory', async () => {
   return null
 })
 
-ipcMain.handle('window:openRepo', async (_event, repoPath: string) => {
-  createWindow(repoPath)
+ipcMain.handle('window:openRepo', async (event, repoPath: string) => {
+  // Send to current window as a new tab
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (win) {
+    win.webContents.send('repo:opened', repoPath)
+  }
 })
 
 ipcMain.handle('window:setTitle', async (event, title: string) => {
@@ -157,6 +192,29 @@ ipcMain.handle('shell:openExternal', async (_event, url: string) => {
   await shell.openExternal(url)
 })
 
+// Auto-fetch: silently fetch all repos across all windows every 3 minutes
+function startAutoFetch(): void {
+  if (autoFetchTimer) clearInterval(autoFetchTimer)
+  autoFetchTimer = setInterval(async () => {
+    for (const [winId, watchers] of windowWatchers) {
+      const win = BrowserWindow.fromId(winId)
+      if (!win || win.isDestroyed()) continue
+      for (const repoPath of watchers.keys()) {
+        try {
+          const git = simpleGit(repoPath)
+          await git.fetch()
+        } catch {
+          // silent fail
+        }
+      }
+      // Notify renderer to refresh
+      if (!win.isDestroyed()) {
+        win.webContents.send('auto:fetched')
+      }
+    }
+  }, AUTO_FETCH_INTERVAL)
+}
+
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.git-manager')
   app.on('browser-window-created', (_, window) => {
@@ -166,6 +224,7 @@ app.whenReady().then(() => {
   registerGitHandlers()
   buildMenu()
   createWindow()
+  startAutoFetch()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -175,6 +234,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  if (autoFetchTimer) clearInterval(autoFetchTimer)
   if (process.platform !== 'darwin') {
     app.quit()
   }

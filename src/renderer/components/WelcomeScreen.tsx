@@ -1,14 +1,14 @@
 import { useGitStore } from '../stores/gitStore'
 
 export function WelcomeScreen() {
-  const { setRepoPath, setError } = useGitStore()
+  const { addProject, setError } = useGitStore()
 
   const handleOpen = async () => {
     const path = await window.windowApi.openDirectory()
     if (path) {
       const isRepo = await window.git.isRepo(path)
       if (isRepo) {
-        setRepoPath(path)
+        addProject(path)
       } else {
         setError(`"${path}" 不是一个 Git 仓库`)
       }

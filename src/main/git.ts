@@ -189,4 +189,10 @@ export function registerGitHandlers(): void {
     const status = await git.status()
     return status.current || 'HEAD'
   })
+
+  // Blame
+  ipcMain.handle('git:blame', async (_event, repoPath: string, filePath: string): Promise<string> => {
+    const git = getGit(repoPath)
+    return git.raw(['blame', '--porcelain', filePath])
+  })
 }

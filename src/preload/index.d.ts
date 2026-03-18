@@ -27,14 +27,17 @@ interface GitApi {
   isRepo(repoPath: string): Promise<boolean>
   remotes(repoPath: string): Promise<any>
   currentBranch(repoPath: string): Promise<string>
+  blame(repoPath: string, filePath: string): Promise<string>
 }
 
 interface WindowApi {
   openDirectory(): Promise<string | null>
   openRepo(repoPath: string): Promise<void>
   setTitle(title: string): Promise<void>
+  addProjectWatcher(repoPath: string): Promise<void>
+  removeProjectWatcher(repoPath: string): Promise<void>
   onRepoOpened(callback: (repoPath: string) => void): void
-  onRepoChanged(callback: () => void): void
+  onRepoChanged(callback: (repoPath: string) => void): void
 }
 
 declare global {

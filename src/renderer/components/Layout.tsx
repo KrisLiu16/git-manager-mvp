@@ -1,4 +1,5 @@
 import { useGitStore } from '../stores/gitStore'
+import { ProjectTabs } from './ProjectTabs'
 import { Toolbar } from './Toolbar'
 import { Sidebar } from './Sidebar'
 import { FileTree } from './FileTree'
@@ -41,9 +42,12 @@ export function Layout() {
 
   return (
     <div className="h-full flex flex-col">
+      {/* Title bar with toolbar */}
       <div className="h-10 titlebar-drag bg-bg-secondary border-b border-border flex items-center px-20">
         <Toolbar />
       </div>
+      {/* Project tabs */}
+      <ProjectTabs />
       <ErrorBanner />
       <div className="flex-1 flex overflow-hidden">
         <Sidebar />
