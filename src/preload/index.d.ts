@@ -31,6 +31,7 @@ interface GitApi {
   showOriginal(repoPath: string, filePath: string, ref?: string): Promise<string>
   showCommitFile(repoPath: string, hash: string, filePath: string): Promise<string>
   commitFiles(repoPath: string, hash: string): Promise<{ status: string; path: string }[]>
+  rawCommand(repoPath: string, command: string): Promise<string>
 }
 
 interface WindowApi {

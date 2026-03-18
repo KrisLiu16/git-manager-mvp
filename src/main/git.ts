@@ -232,4 +232,11 @@ export function registerGitHandlers(): void {
     const git = getGit(repoPath)
     return git.raw(['blame', '--porcelain', filePath])
   })
+
+  // Raw git command (for terminal)
+  ipcMain.handle('git:rawCommand', async (_event, repoPath: string, command: string) => {
+    const git = getGit(repoPath)
+    const args = command.split(/\s+/).filter(Boolean)
+    return git.raw(args)
+  })
 }
