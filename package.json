@@ -7,7 +7,19 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "pack": "electron-vite build && electron-builder --mac --config.mac.identity=null"
+  },
+  "build": {
+    "appId": "com.git-manager",
+    "productName": "Git Manager",
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools"
+    },
+    "directories": {
+      "output": "dist"
+    }
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
