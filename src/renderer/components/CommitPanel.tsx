@@ -191,6 +191,9 @@ function FileContextMenu({ x, y, file, onClose, onStage, onUnstage, onDiscard, o
         ) : (
           <div className="context-menu-item" onClick={onStage}>暂存文件</div>
         )}
+        <div className="context-menu-separator" />
+        <div className="context-menu-item" onClick={() => { navigator.clipboard.writeText(file.path); onClose() }}>复制文件路径</div>
+        <div className="context-menu-item" onClick={() => { navigator.clipboard.writeText(file.path.split('/').pop() || file.path); onClose() }}>复制文件名</div>
         {file.status !== 'untracked' && !file.staged && (
           <>
             <div className="context-menu-separator" />

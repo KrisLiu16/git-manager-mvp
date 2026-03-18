@@ -161,6 +161,14 @@ interface GitStore {
   deleteBranch: (name: string, force?: boolean) => Promise<void>
   mergeBranch: (name: string) => Promise<void>
 
+  cherryPick: (hash: string) => Promise<void>
+  revertCommit: (hash: string) => Promise<void>
+  resetBranch: (hash: string, mode: 'soft' | 'mixed' | 'hard') => Promise<void>
+  createTag: (name: string, hash?: string) => Promise<void>
+  deleteTag: (name: string) => Promise<void>
+  renameBranch: (oldName: string, newName: string) => Promise<void>
+  rebaseBranch: (onto: string) => Promise<void>
+
   saveStash: (message?: string) => Promise<void>
   popStash: (index: number) => Promise<void>
   applyStash: (index: number) => Promise<void>
@@ -559,6 +567,55 @@ export const useGitStore = create<GitStore>((set, get) => {
       const proj = getProject()
       if (!proj) return
       try { await window.git.merge(proj.repoPath, name); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
+    },
+
+    cherryPick: async (hash) => {
+      const proj = getProject()
+      if (!proj) return
+      try { await window.git.cherryPick(proj.repoPath, hash); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
+    },
+
+    revertCommit: async (hash) => {
+      const proj = getProject()
+      if (!proj) return
+      try { await window.git.revertCommit(proj.repoPath, hash); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
+    },
+
+    resetBranch: async (hash, mode) => {
+      const proj = getProject()
+      if (!proj) return
+      try { await window.git.resetBranch(proj.repoPath, hash, `--${mode}`); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
+    },
+
+    createTag: async (name, hash) => {
+      const proj = getProject()
+      if (!proj) return
+      try { await window.git.createTag(proj.repoPath, name, hash); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
+    },
+
+    deleteTag: async (name) => {
+      const proj = getProject()
+      if (!proj) return
+      try { await window.git.deleteTag(proj.repoPath, name); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
+    },
+
+    renameBranch: async (oldName, newName) => {
+      const proj = getProject()
+      if (!proj) return
+      try { await window.git.renameBranch(proj.repoPath, oldName, newName); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
+    },
+
+    rebaseBranch: async (onto) => {
+      const proj = getProject()
+      if (!proj) return
+      try { await window.git.rebaseBranch(proj.repoPath, onto); await get().refreshAll() }
       catch (err: any) { set({ error: err.message }) }
     },
 

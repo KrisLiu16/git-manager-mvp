@@ -249,6 +249,56 @@ export function registerGitHandlers(): void {
     })
   })
 
+  // Cherry-pick a commit
+  ipcMain.handle('git:cherryPick', async (_event, repoPath: string, hash: string) => {
+    const git = getGit(repoPath)
+    await git.raw(['cherry-pick', hash])
+  })
+
+  // Revert a commit
+  ipcMain.handle('git:revertCommit', async (_event, repoPath: string, hash: string) => {
+    const git = getGit(repoPath)
+    await git.raw(['revert', hash, '--no-edit'])
+  })
+
+  // Reset current branch to a commit
+  ipcMain.handle('git:resetBranch', async (_event, repoPath: string, hash: string, mode: string) => {
+    const git = getGit(repoPath)
+    await git.raw(['reset', mode, hash])
+  })
+
+  // Create tag
+  ipcMain.handle('git:createTag', async (_event, repoPath: string, name: string, hash?: string) => {
+    const git = getGit(repoPath)
+    const args = hash ? [name, hash] : [name]
+    await git.tag(args)
+  })
+
+  // Delete tag
+  ipcMain.handle('git:deleteTag', async (_event, repoPath: string, name: string) => {
+    const git = getGit(repoPath)
+    await git.tag(['-d', name])
+  })
+
+  // Rename branch
+  ipcMain.handle('git:renameBranch', async (_event, repoPath: string, oldName: string, newName: string) => {
+    const git = getGit(repoPath)
+    await git.raw(['branch', '-m', oldName, newName])
+  })
+
+  // Rebase onto branch
+  ipcMain.handle('git:rebaseBranch', async (_event, repoPath: string, onto: string) => {
+    const git = getGit(repoPath)
+    await git.rebase([onto])
+  })
+
+  // Log for a single file
+  ipcMain.handle('git:logFile', async (_event, repoPath: string, filePath: string, maxCount: number = 50) => {
+    const git = getGit(repoPath)
+    const result = await git.log({ file: filePath, maxCount } as any)
+    return toPlain(result)
+  })
+
   // Raw git command (for terminal)
   ipcMain.handle('git:rawCommand', async (_event, repoPath: string, command: string) => {
     const git = getGit(repoPath)

@@ -33,7 +33,15 @@ const gitApi = {
   showCommitFile: (repoPath: string, hash: string, filePath: string) => ipcRenderer.invoke('git:showCommitFile', repoPath, hash, filePath),
   commitFiles: (repoPath: string, hash: string) => ipcRenderer.invoke('git:commitFiles', repoPath, hash),
   rawCommand: (repoPath: string, command: string) => ipcRenderer.invoke('git:rawCommand', repoPath, command),
-  graphLog: (repoPath: string, maxCount?: number) => ipcRenderer.invoke('git:graphLog', repoPath, maxCount)
+  graphLog: (repoPath: string, maxCount?: number) => ipcRenderer.invoke('git:graphLog', repoPath, maxCount),
+  cherryPick: (repoPath: string, hash: string) => ipcRenderer.invoke('git:cherryPick', repoPath, hash),
+  revertCommit: (repoPath: string, hash: string) => ipcRenderer.invoke('git:revertCommit', repoPath, hash),
+  resetBranch: (repoPath: string, hash: string, mode: string) => ipcRenderer.invoke('git:resetBranch', repoPath, hash, mode),
+  createTag: (repoPath: string, name: string, hash?: string) => ipcRenderer.invoke('git:createTag', repoPath, name, hash),
+  deleteTag: (repoPath: string, name: string) => ipcRenderer.invoke('git:deleteTag', repoPath, name),
+  renameBranch: (repoPath: string, oldName: string, newName: string) => ipcRenderer.invoke('git:renameBranch', repoPath, oldName, newName),
+  rebaseBranch: (repoPath: string, onto: string) => ipcRenderer.invoke('git:rebaseBranch', repoPath, onto),
+  logFile: (repoPath: string, filePath: string, maxCount?: number) => ipcRenderer.invoke('git:logFile', repoPath, filePath, maxCount)
 }
 
 const windowApi = {

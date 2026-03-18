@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useGitStore, BranchInfo } from '../stores/gitStore'
+import { ContextMenu, MenuItem } from './ContextMenu'
+import { InputDialog } from './InputDialog'
+import { ConfirmDialog } from './ConfirmDialog'
 
 type BottomTab = 'log' | 'terminal'
 
@@ -49,13 +52,21 @@ function TabBtn({ label, active, onClick }: { label: string; active: boolean; on
 
 function LogPanel() {
   const { branches, currentBranch, repoPath, refreshBranches,
-    switchBranch, deleteBranch, mergeBranch, showCommitFileDiff, clearCommitDiff } = useGitStore()
+    switchBranch, deleteBranch, mergeBranch, showCommitFileDiff, clearCommitDiff,
+    cherryPick, revertCommit, resetBranch, createBranch, createTag,
+    renameBranch, rebaseBranch, doPush, doPull } = useGitStore()
 
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([])
   const [selectedHash, setSelectedHash] = useState<string | null>(null)
   const [commitFiles, setCommitFiles] = useState<{ status: string; path: string }[]>([])
   const [search, setSearch] = useState('')
   const [branchCtx, setBranchCtx] = useState<{ x: number; y: number; branch: BranchInfo } | null>(null)
+  const [commitCtx, setCommitCtx] = useState<{ x: number; y: number; commit: GraphCommit } | null>(null)
+  const [fileCtx, setFileCtx] = useState<{ x: number; y: number; file: { status: string; path: string }; hash: string } | null>(null)
+  const [inputDialog, setInputDialog] = useState<{ title: string; placeholder: string; onConfirm: (v: string) => void } | null>(null)
+  const [resetDialog, setResetDialog] = useState<{ hash: string; shortHash: string } | null>(null)
+  const [resetMode, setResetMode] = useState<'soft' | 'mixed' | 'hard'>('mixed')
+  const [renameDialog, setRenameDialog] = useState<{ branchName: string } | null>(null)
 
   useEffect(() => {
     refreshBranches()
@@ -100,7 +111,7 @@ function LogPanel() {
   const remoteBranches = branches.filter(b => b.isRemote)
 
   return (
-    <div className="flex h-full" onClick={() => setBranchCtx(null)}>
+    <div className="flex h-full" onClick={() => { setBranchCtx(null); setCommitCtx(null); setFileCtx(null) }}>
       {/* Branch tree */}
       <div className="w-[180px] border-r border-border overflow-y-auto flex-shrink-0 text-[11px] select-none">
         <FolderBranchTree title="本地" branches={localBranches} currentBranch={currentBranch}
@@ -108,15 +119,32 @@ function LogPanel() {
         <RemoteBranchTree branches={remoteBranches} onSwitch={switchBranch}
           onContext={(e, b) => { e.preventDefault(); setBranchCtx({ x: e.clientX, y: e.clientY, branch: b }) }} />
 
-        {branchCtx && (
-          <BranchContextMenu x={branchCtx.x} y={branchCtx.y} branch={branchCtx.branch}
-            currentBranch={currentBranch}
-            onClose={() => setBranchCtx(null)}
-            onCheckout={() => { switchBranch(branchCtx.branch.name); setBranchCtx(null) }}
-            onMerge={() => { mergeBranch(branchCtx.branch.name); setBranchCtx(null) }}
-            onDelete={() => { deleteBranch(branchCtx.branch.name); setBranchCtx(null) }}
-          />
-        )}
+        {branchCtx && (() => {
+          const b = branchCtx.branch
+          const isCurrent = b.name === currentBranch
+          const isLocal = !b.isRemote
+          const items: MenuItem[] = []
+          if (!isCurrent) items.push({ label: '检出', onClick: () => { switchBranch(b.name); setBranchCtx(null) }, separator: false })
+          if (!isCurrent && isLocal) {
+            items.push({ label: '', onClick: () => {}, separator: true })
+            items.push({ label: '合并到当前分支', onClick: () => { mergeBranch(b.name); setBranchCtx(null) } })
+            items.push({ label: '变基当前分支到此', onClick: () => { rebaseBranch(b.name); setBranchCtx(null) } })
+          }
+          if (isCurrent) {
+            items.push({ label: '', onClick: () => {}, separator: true })
+            items.push({ label: '推送', onClick: () => { doPush(); setBranchCtx(null) } })
+            items.push({ label: '拉取', onClick: () => { doPull(); setBranchCtx(null) } })
+          }
+          if (!isCurrent && isLocal) {
+            items.push({ label: '', onClick: () => {}, separator: true })
+            items.push({ label: '重命名...', onClick: () => { setRenameDialog({ branchName: b.name }); setBranchCtx(null) } })
+          }
+          if (!isCurrent && isLocal) {
+            items.push({ label: '', onClick: () => {}, separator: true })
+            items.push({ label: '删除分支', onClick: () => { deleteBranch(b.name); setBranchCtx(null) }, danger: true })
+          }
+          return <ContextMenu x={branchCtx.x} y={branchCtx.y} items={items} onClose={() => setBranchCtx(null)} />
+        })()}
       </div>
 
       {/* Commit list with graph + search */}
@@ -141,7 +169,8 @@ function LogPanel() {
               className={`flex items-center border-b border-border/30 cursor-pointer text-[11px] ${
                 selectedHash === c.hash ? 'bg-bg-active' : 'hover:bg-bg-hover'
               }`}
-              onClick={() => onSelectCommit(c)}>
+              onClick={() => onSelectCommit(c)}
+              onContextMenu={e => { e.preventDefault(); setCommitCtx({ x: e.clientX, y: e.clientY, commit: c }) }}>
               {/* Graph column */}
               <GraphCell commit={c} allCommits={filteredCommits} />
               {/* Message */}
@@ -178,7 +207,8 @@ function LogPanel() {
               {commitFiles.map(f => (
                 <div key={f.path}
                   className="px-2 py-[2px] text-[11px] cursor-pointer hover:bg-bg-hover flex items-center gap-1.5"
-                  onClick={() => onClickFile(f)}>
+                  onClick={() => onClickFile(f)}
+                  onContextMenu={e => { e.preventDefault(); if (selectedHash) setFileCtx({ x: e.clientX, y: e.clientY, file: f, hash: selectedHash }) }}>
                   <span className={`font-mono text-[10px] w-3 ${statusColor(f.status)}`}>{f.status}</span>
                   <span className="text-text-primary truncate">{f.path}</span>
                 </div>
@@ -191,6 +221,70 @@ function LogPanel() {
           </div>
         )}
       </div>
+
+      {/* Commit row context menu */}
+      {commitCtx && (() => {
+        const c = commitCtx.commit
+        const items: MenuItem[] = [
+          { label: '复制提交哈希', onClick: () => { navigator.clipboard.writeText(c.hash); setCommitCtx(null) }, separator: false },
+          { label: '复制提交信息', onClick: () => { navigator.clipboard.writeText(c.message); setCommitCtx(null) }, separator: false },
+          { label: '', onClick: () => {}, separator: true },
+          { label: '检出此提交', onClick: () => { switchBranch(c.hash); setCommitCtx(null) } },
+          { label: '优选 (Cherry-pick)', onClick: () => { cherryPick(c.hash); setCommitCtx(null) } },
+          { label: '还原提交 (Revert)', onClick: () => { revertCommit(c.hash); setCommitCtx(null) } },
+          { label: '', onClick: () => {}, separator: true },
+          { label: '将当前分支重置到此处...', onClick: () => { setResetDialog({ hash: c.hash, shortHash: c.hash.substring(0, 8) }); setCommitCtx(null) }, danger: true },
+          { label: '', onClick: () => {}, separator: true },
+          { label: '从此提交新建分支...', onClick: () => { setInputDialog({ title: '从此提交新建分支', placeholder: '分支名称', onConfirm: (name) => { createBranch(name, c.hash); setInputDialog(null) } }); setCommitCtx(null) } },
+          { label: '新建标签...', onClick: () => { setInputDialog({ title: '新建标签', placeholder: '标签名称', onConfirm: (name) => { createTag(name, c.hash); setInputDialog(null) } }); setCommitCtx(null) } },
+        ]
+        return <ContextMenu x={commitCtx.x} y={commitCtx.y} items={items} onClose={() => setCommitCtx(null)} />
+      })()}
+
+      {/* Commit detail file context menu */}
+      {fileCtx && (() => {
+        const f = fileCtx.file
+        const h = fileCtx.hash
+        const items: MenuItem[] = [
+          { label: '显示差异', onClick: () => { showCommitFileDiff(h, f); setFileCtx(null) }, separator: false },
+          { label: '', onClick: () => {}, separator: true },
+          { label: '复制文件路径', onClick: () => { navigator.clipboard.writeText(f.path); setFileCtx(null) } },
+          { label: '复制文件名', onClick: () => { navigator.clipboard.writeText(f.path.split('/').pop() || f.path); setFileCtx(null) } },
+        ]
+        return <ContextMenu x={fileCtx.x} y={fileCtx.y} items={items} onClose={() => setFileCtx(null)} />
+      })()}
+
+      {/* Input dialog (new branch / new tag / rename) */}
+      {inputDialog && (
+        <InputDialog title={inputDialog.title} placeholder={inputDialog.placeholder}
+          onConfirm={inputDialog.onConfirm} onCancel={() => setInputDialog(null)} />
+      )}
+
+      {/* Reset branch confirmation dialog */}
+      {resetDialog && (
+        <ConfirmDialog title="重置当前分支" message={`将当前分支重置到 ${resetDialog.shortHash}，此操作可能丢失提交。`} danger
+          onConfirm={() => { resetBranch(resetDialog.hash, resetMode); setResetDialog(null); setResetMode('mixed') }}
+          onCancel={() => { setResetDialog(null); setResetMode('mixed') }}>
+          <div className="flex flex-col gap-1.5 mb-2">
+            {(['soft', 'mixed', 'hard'] as const).map(m => (
+              <label key={m} className="flex items-center gap-2 text-xs text-text-primary cursor-pointer">
+                <input type="radio" name="resetMode" checked={resetMode === m} onChange={() => setResetMode(m)} className="w-3 h-3" />
+                <span className="font-mono">{m}</span>
+                <span className="text-text-secondary text-[10px]">
+                  {m === 'soft' ? '(保留暂存区和工作目录)' : m === 'mixed' ? '(保留工作目录，重置暂存区)' : '(全部重置，丢失更改)'}
+                </span>
+              </label>
+            ))}
+          </div>
+        </ConfirmDialog>
+      )}
+
+      {/* Rename branch dialog */}
+      {renameDialog && (
+        <InputDialog title={`重命名分支: ${renameDialog.branchName}`} placeholder="新分支名称"
+          onConfirm={(newName) => { renameBranch(renameDialog.branchName, newName); setRenameDialog(null) }}
+          onCancel={() => setRenameDialog(null)} />
+      )}
     </div>
   )
 }
@@ -425,26 +519,6 @@ function RemoteGroupTree({ remote, tree, onSwitch, onContext }: {
       </div>
       {open && <BranchTreeNodes node={tree} depth={2} currentBranch="" onSwitch={onSwitch} onContext={onContext} />}
     </div>
-  )
-}
-
-// ============ CONTEXT MENU ============
-
-function BranchContextMenu({ x, y, branch, currentBranch, onClose, onCheckout, onMerge, onDelete }: {
-  x: number; y: number; branch: BranchInfo; currentBranch: string
-  onClose: () => void; onCheckout: () => void; onMerge: () => void; onDelete: () => void
-}) {
-  return (
-    <>
-      <div className="fixed inset-0 z-50" onClick={onClose} />
-      <div className="context-menu z-50" style={{ left: x, top: y }}>
-        {branch.name !== currentBranch && <div className="context-menu-item" onClick={onCheckout}>检出</div>}
-        {branch.name !== currentBranch && !branch.isRemote && <div className="context-menu-item" onClick={onMerge}>合并到当前分支</div>}
-        {branch.name !== currentBranch && !branch.isRemote && (
-          <><div className="context-menu-separator" /><div className="context-menu-item text-status-deleted" onClick={onDelete}>删除分支</div></>
-        )}
-      </div>
-    </>
   )
 }
 

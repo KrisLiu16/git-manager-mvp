@@ -33,6 +33,14 @@ interface GitApi {
   commitFiles(repoPath: string, hash: string): Promise<{ status: string; path: string }[]>
   rawCommand(repoPath: string, command: string): Promise<string>
   graphLog(repoPath: string, maxCount?: number): Promise<GraphCommit[]>
+  cherryPick(repoPath: string, hash: string): Promise<void>
+  revertCommit(repoPath: string, hash: string): Promise<void>
+  resetBranch(repoPath: string, hash: string, mode: string): Promise<void>
+  createTag(repoPath: string, name: string, hash?: string): Promise<void>
+  deleteTag(repoPath: string, name: string): Promise<void>
+  renameBranch(repoPath: string, oldName: string, newName: string): Promise<void>
+  rebaseBranch(repoPath: string, onto: string): Promise<void>
+  logFile(repoPath: string, filePath: string, maxCount?: number): Promise<any>
 }
 
 interface GraphCommit {
