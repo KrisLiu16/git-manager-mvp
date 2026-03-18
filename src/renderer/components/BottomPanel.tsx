@@ -55,7 +55,7 @@ function LogPanel() {
   const { branches, currentBranch, repoPath, refreshBranches,
     switchBranch, deleteBranch, mergeBranch, showCommitFileDiff, clearCommitDiff,
     cherryPick, revertCommit, resetBranch, createBranch, createTag,
-    renameBranch, rebaseBranch, doPush, doPull } = useGitStore()
+    renameBranch, rebaseBranch, doPush, doPull, doFetch } = useGitStore()
 
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([])
   const [selectedHash, setSelectedHash] = useState<string | null>(null)
@@ -153,11 +153,19 @@ function LogPanel() {
           const displayName = isLocal ? b.name : b.name.replace(/^remotes\/[^/]+\//, '')
           const items: MenuItem[] = []
 
-          // 检出（远程分支会自动创建本地跟踪分支）
+          // 检出
           if (!isCurrent) {
             items.push({ label: isLocal ? '检出' : `检出并创建本地分支 '${displayName}'`,
               onClick: () => { switchBranch(b.name); setBranchCtx(null) } })
           }
+
+          // 更新（从远程拉取最新）
+          items.push({ label: '', onClick: () => {}, separator: true })
+          if (isCurrent) {
+            items.push({ label: '从远程更新 (Pull)', onClick: () => { doPull(); setBranchCtx(null) } })
+            items.push({ label: '推送到远程 (Push)', onClick: () => { doPush(); setBranchCtx(null) } })
+          }
+          items.push({ label: '拉取所有远程 (Fetch All)', onClick: () => { doFetch(); setBranchCtx(null) } })
 
           // 新建
           items.push({ label: '', onClick: () => {}, separator: true })
@@ -172,7 +180,7 @@ function LogPanel() {
             setBranchCtx(null)
           }})
 
-          // 合并/变基（仅非当前）
+          // 合并/变基
           if (!isCurrent) {
             items.push({ label: '', onClick: () => {}, separator: true })
             items.push({ label: `将 '${displayName}' 合并到 '${currentBranch}'`,
@@ -181,20 +189,13 @@ function LogPanel() {
               onClick: () => { rebaseBranch(b.name); setBranchCtx(null) } })
           }
 
-          // 推送/拉取（当前分支）
-          if (isCurrent) {
-            items.push({ label: '', onClick: () => {}, separator: true })
-            items.push({ label: '推送...', onClick: () => { doPush(); setBranchCtx(null) } })
-            items.push({ label: '拉取...', onClick: () => { doPull(); setBranchCtx(null) } })
-          }
-
-          // 重命名（本地分支）
+          // 重命名
           if (isLocal) {
             items.push({ label: '', onClick: () => {}, separator: true })
             items.push({ label: '重命名...', onClick: () => { setRenameDialog({ branchName: b.name }); setBranchCtx(null) } })
           }
 
-          // 删除（非当前本地分支）
+          // 删除
           if (!isCurrent && isLocal) {
             items.push({ label: '', onClick: () => {}, separator: true })
             items.push({ label: `删除分支 '${displayName}'`, onClick: () => { deleteBranch(b.name); setBranchCtx(null) }, danger: true })
