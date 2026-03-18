@@ -28,7 +28,10 @@ const gitApi = {
   isRepo: (repoPath: string) => ipcRenderer.invoke('git:isRepo', repoPath),
   remotes: (repoPath: string) => ipcRenderer.invoke('git:remotes', repoPath),
   currentBranch: (repoPath: string) => ipcRenderer.invoke('git:currentBranch', repoPath),
-  blame: (repoPath: string, filePath: string) => ipcRenderer.invoke('git:blame', repoPath, filePath)
+  blame: (repoPath: string, filePath: string) => ipcRenderer.invoke('git:blame', repoPath, filePath),
+  showOriginal: (repoPath: string, filePath: string, ref?: string) => ipcRenderer.invoke('git:showOriginal', repoPath, filePath, ref),
+  showCommitFile: (repoPath: string, hash: string, filePath: string) => ipcRenderer.invoke('git:showCommitFile', repoPath, hash, filePath),
+  commitFiles: (repoPath: string, hash: string) => ipcRenderer.invoke('git:commitFiles', repoPath, hash)
 }
 
 const windowApi = {

@@ -28,6 +28,9 @@ interface GitApi {
   remotes(repoPath: string): Promise<any>
   currentBranch(repoPath: string): Promise<string>
   blame(repoPath: string, filePath: string): Promise<string>
+  showOriginal(repoPath: string, filePath: string, ref?: string): Promise<string>
+  showCommitFile(repoPath: string, hash: string, filePath: string): Promise<string>
+  commitFiles(repoPath: string, hash: string): Promise<{ status: string; path: string }[]>
 }
 
 interface WindowApi {

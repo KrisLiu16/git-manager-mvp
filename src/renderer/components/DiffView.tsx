@@ -1,81 +1,142 @@
-import { useMemo, useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { DiffEditor, loader } from '@monaco-editor/react'
+import * as monaco from 'monaco-editor'
 import { useGitStore, BlameInfo } from '../stores/gitStore'
-import { html, Diff2HtmlConfig } from 'diff2html'
-import 'diff2html/bundles/css/diff2html.min.css'
+
+// Configure Monaco to load from node_modules
+loader.config({ monaco })
+
+// Detect language from file extension
+function detectLanguage(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase() || ''
+  const map: Record<string, string> = {
+    ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+    json: 'json', md: 'markdown', css: 'css', scss: 'scss', less: 'less',
+    html: 'html', xml: 'xml', yaml: 'yaml', yml: 'yaml', toml: 'toml',
+    py: 'python', go: 'go', rs: 'rust', java: 'java', kt: 'kotlin',
+    rb: 'ruby', php: 'php', sh: 'shell', bash: 'shell', zsh: 'shell',
+    sql: 'sql', graphql: 'graphql', proto: 'protobuf',
+    c: 'c', cpp: 'cpp', h: 'c', hpp: 'cpp', cs: 'csharp',
+    swift: 'swift', dart: 'dart', lua: 'lua', r: 'r',
+    vue: 'html', svelte: 'html', dockerfile: 'dockerfile',
+    makefile: 'makefile', cmake: 'cmake',
+  }
+  return map[ext] || 'plaintext'
+}
 
 export function DiffView() {
-  const { diffContent, selectedFile, diffMode, setDiffMode, getBlame, repoPath } = useGitStore()
+  const { selectedFile, repoPath, diffMode, setDiffMode, getBlame } = useGitStore()
+  const [originalContent, setOriginalContent] = useState('')
+  const [modifiedContent, setModifiedContent] = useState('')
   const [blameData, setBlameData] = useState<BlameInfo[]>([])
   const [tooltip, setTooltip] = useState<{ x: number; y: number; info: BlameInfo } | null>(null)
-  const diffRef = useRef<HTMLDivElement>(null)
+  const editorRef = useRef<any>(null)
 
-  const diffHtml = useMemo(() => {
-    if (!diffContent) return ''
-    const config: Diff2HtmlConfig = {
-      outputFormat: diffMode === 'side-by-side' ? 'side-by-side' : 'line-by-line',
-      drawFileList: false,
-      matching: 'lines',
-      highlight: true
-    }
-    return html(diffContent, config)
-  }, [diffContent, diffMode])
-
-  // Load blame data when a file is selected
+  // Load file contents when file is selected
   useEffect(() => {
-    if (selectedFile && selectedFile.status !== 'untracked' && repoPath) {
+    if (!selectedFile || !repoPath) {
+      setOriginalContent('')
+      setModifiedContent('')
+      setBlameData([])
+      return
+    }
+
+    const loadContents = async () => {
+      try {
+        if (selectedFile.status === 'untracked') {
+          setOriginalContent('')
+          const content = await window.git.showFile(repoPath, selectedFile.path)
+          setModifiedContent(content)
+        } else if (selectedFile.status === 'added') {
+          setOriginalContent('')
+          if (selectedFile.staged) {
+            const content = await window.git.showOriginal(repoPath, selectedFile.path, ':0')
+            setModifiedContent(content)
+          } else {
+            const content = await window.git.showFile(repoPath, selectedFile.path)
+            setModifiedContent(content)
+          }
+        } else if (selectedFile.status === 'deleted') {
+          const original = await window.git.showOriginal(repoPath, selectedFile.path)
+          setOriginalContent(original)
+          setModifiedContent('')
+        } else {
+          // modified, renamed etc.
+          const original = await window.git.showOriginal(repoPath, selectedFile.path)
+          setOriginalContent(original)
+          if (selectedFile.staged) {
+            // Staged: show index version vs HEAD
+            const staged = await window.git.showOriginal(repoPath, selectedFile.path, ':0')
+            setModifiedContent(staged)
+          } else {
+            // Unstaged: show working copy vs HEAD
+            const current = await window.git.showFile(repoPath, selectedFile.path)
+            setModifiedContent(current)
+          }
+        }
+      } catch {
+        setOriginalContent('')
+        setModifiedContent('')
+      }
+    }
+
+    loadContents()
+
+    // Load blame
+    if (selectedFile.status !== 'untracked') {
       getBlame(selectedFile.path).then(setBlameData).catch(() => setBlameData([]))
     } else {
       setBlameData([])
     }
-  }, [selectedFile?.path, repoPath])
+  }, [selectedFile?.path, selectedFile?.staged, selectedFile?.status, repoPath])
 
-  const handleMouseOver = useCallback((e: React.MouseEvent) => {
-    if (blameData.length === 0) return
-    const target = e.target as HTMLElement
-    // Find the line number element
-    const lineNumEl = target.closest('.d2h-code-linenumber')
-    if (!lineNumEl) {
-      setTooltip(null)
-      return
-    }
-    const lineText = lineNumEl.textContent?.trim()
-    if (!lineText) return
-    const lineNum = parseInt(lineText, 10)
-    if (isNaN(lineNum)) return
+  const handleEditorMount = useCallback((editor: any) => {
+    editorRef.current = editor
 
-    const info = blameData.find(b => b.line === lineNum)
-    if (info) {
-      const rect = lineNumEl.getBoundingClientRect()
-      setTooltip({ x: rect.right + 8, y: rect.top, info })
+    // Add blame hover on modified editor
+    const modifiedEditor = editor.getModifiedEditor()
+    if (modifiedEditor && blameData.length > 0) {
+      modifiedEditor.onMouseMove((e: any) => {
+        if (e.target?.position?.lineNumber && blameData.length > 0) {
+          const lineNum = e.target.position.lineNumber
+          const info = blameData.find(b => b.line === lineNum)
+          if (info) {
+            setTooltip({
+              x: e.event.posx + 12,
+              y: e.event.posy - 10,
+              info
+            })
+          } else {
+            setTooltip(null)
+          }
+        } else {
+          setTooltip(null)
+        }
+      })
+      modifiedEditor.onMouseLeave(() => setTooltip(null))
     }
   }, [blameData])
 
-  const handleMouseLeave = useCallback(() => {
-    setTooltip(null)
-  }, [])
-
-  if (!diffContent) {
+  if (!selectedFile) {
     return (
       <div className="h-full flex items-center justify-center text-text-secondary text-sm">
-        {selectedFile ? '无差异内容' : '选择文件以查看差异'}
+        选择文件以查看差异
       </div>
     )
   }
 
+  const language = detectLanguage(selectedFile.path)
+
   return (
     <div className="h-full flex flex-col">
       {/* Diff toolbar */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-bg-secondary border-b border-border">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-bg-secondary border-b border-border flex-shrink-0">
         <div className="flex items-center gap-2 text-xs">
-          {selectedFile && (
-            <>
-              <StatusBadge status={selectedFile.status} />
-              <span className="text-text-primary">{selectedFile.path}</span>
-              <span className="text-text-secondary">
-                ({selectedFile.staged ? '已暂存' : '工作区'})
-              </span>
-            </>
-          )}
+          <StatusBadge status={selectedFile.status} />
+          <span className="text-text-primary">{selectedFile.path}</span>
+          <span className="text-text-secondary">
+            ({selectedFile.staged ? '已暂存' : '工作区'})
+          </span>
         </div>
         <div className="flex items-center gap-1 text-xs">
           <button
@@ -84,7 +145,7 @@ export function DiffView() {
               diffMode === 'unified' ? 'bg-bg-active text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
             }`}
           >
-            统一视图
+            内联视图
           </button>
           <button
             onClick={() => setDiffMode('side-by-side')}
@@ -96,18 +157,37 @@ export function DiffView() {
           </button>
         </div>
       </div>
-      {/* Diff content */}
-      <div
-        ref={diffRef}
-        className="flex-1 overflow-auto p-0 relative"
-        dangerouslySetInnerHTML={{ __html: diffHtml }}
-        onMouseOver={handleMouseOver}
-        onMouseLeave={handleMouseLeave}
-      />
+      {/* Monaco Diff Editor */}
+      <div className="flex-1 min-h-0">
+        <DiffEditor
+          original={originalContent}
+          modified={modifiedContent}
+          language={language}
+          theme="vs-dark"
+          onMount={handleEditorMount}
+          options={{
+            readOnly: true,
+            renderSideBySide: diffMode === 'side-by-side',
+            minimap: { enabled: false },
+            fontSize: 12,
+            lineHeight: 20,
+            scrollBeyondLastLine: false,
+            renderOverviewRuler: true,
+            diffWordWrap: 'on',
+            wordWrap: 'on',
+            automaticLayout: true,
+            glyphMargin: false,
+            folding: true,
+            lineNumbersMinChars: 3,
+            scrollbar: {
+              verticalScrollbarSize: 8,
+              horizontalScrollbarSize: 8
+            }
+          }}
+        />
+      </div>
       {/* Blame tooltip */}
-      {tooltip && (
-        <BlameTooltip x={tooltip.x} y={tooltip.y} info={tooltip.info} />
-      )}
+      {tooltip && <BlameTooltip x={tooltip.x} y={tooltip.y} info={tooltip.info} />}
     </div>
   )
 }
