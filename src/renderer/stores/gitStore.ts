@@ -59,59 +59,62 @@ export interface ProjectState {
   diffContent: string
   commitMessage: string
   amendMode: boolean
-
   stagedFiles: GitFile[]
   unstagedFiles: GitFile[]
   untrackedFiles: GitFile[]
-
   commits: CommitInfo[]
   branches: BranchInfo[]
   stashes: StashEntry[]
   remotes: RemoteInfo[]
-
   lastFetchAt: number | null
 }
 
 function createProjectState(repoPath: string): ProjectState {
   const name = repoPath.split('/').pop() || repoPath
   return {
-    repoPath,
-    name,
-    currentBranch: '',
-    activeTab: 'changes',
-    selectedFile: null,
-    diffContent: '',
-    commitMessage: '',
-    amendMode: false,
-    stagedFiles: [],
-    unstagedFiles: [],
-    untrackedFiles: [],
-    commits: [],
-    branches: [],
-    stashes: [],
-    remotes: [],
-    lastFetchAt: null
+    repoPath, name, currentBranch: '', activeTab: 'changes',
+    selectedFile: null, diffContent: '', commitMessage: '', amendMode: false,
+    stagedFiles: [], unstagedFiles: [], untrackedFiles: [],
+    commits: [], branches: [], stashes: [], remotes: [], lastFetchAt: null
   }
 }
 
+const emptyProject: ProjectState = createProjectState('')
+
+// ---- Store interface ----
+
 interface GitStore {
+  // Multi-project state
   projects: ProjectState[]
   activeProjectIndex: number
   diffMode: DiffMode
   isLoading: boolean
   error: string | null
-  blameCache: Map<string, BlameInfo[]>
+  blameCache: Record<string, BlameInfo[]>
 
-  // Project helpers
-  activeProject: () => ProjectState | null
-  updateActiveProject: (patch: Partial<ProjectState>) => void
+  // Flat "active project" fields — zustand-reactive, synced on every update
+  repoPath: string | null
+  currentBranch: string
+  activeTab: ViewTab
+  selectedFile: GitFile | null
+  diffContent: string
+  commitMessage: string
+  amendMode: boolean
+  stagedFiles: GitFile[]
+  unstagedFiles: GitFile[]
+  untrackedFiles: GitFile[]
+  commits: CommitInfo[]
+  branches: BranchInfo[]
+  stashes: StashEntry[]
+  remotes: RemoteInfo[]
+  lastFetchAt: number | null
 
-  // Multi-project
+  // Multi-project ops
   addProject: (path: string) => void
   removeProject: (index: number) => void
   switchProject: (index: number) => void
 
-  // UI state
+  // UI setters
   setActiveTab: (tab: ViewTab) => void
   setDiffMode: (mode: DiffMode) => void
   setSelectedFile: (file: GitFile | null) => void
@@ -145,47 +148,26 @@ interface GitStore {
   selectFileAndShowDiff: (file: GitFile) => Promise<void>
   showCommitDiff: (hash: string) => Promise<void>
 
-  // Branch
   createBranch: (name: string, startPoint?: string) => Promise<void>
   switchBranch: (name: string) => Promise<void>
   deleteBranch: (name: string, force?: boolean) => Promise<void>
   mergeBranch: (name: string) => Promise<void>
 
-  // Stash
   saveStash: (message?: string) => Promise<void>
   popStash: (index: number) => Promise<void>
   applyStash: (index: number) => Promise<void>
   dropStash: (index: number) => Promise<void>
 
-  // Blame
   getBlame: (filePath: string) => Promise<BlameInfo[]>
-
-  // Auto fetch
   autoFetchAll: () => Promise<void>
-
-  // Legacy compat getters
-  repoPath: string | null
-  currentBranch: string
-  activeTab: ViewTab
-  selectedFile: GitFile | null
-  diffContent: string
-  commitMessage: string
-  amendMode: boolean
-  stagedFiles: GitFile[]
-  unstagedFiles: GitFile[]
-  untrackedFiles: GitFile[]
-  commits: CommitInfo[]
-  branches: BranchInfo[]
-  stashes: StashEntry[]
-  remotes: RemoteInfo[]
-  lastFetchAt: number | null
 }
+
+// ---- Helpers ----
 
 function parseStatusFiles(status: any): { staged: GitFile[]; unstaged: GitFile[]; untracked: GitFile[] } {
   const staged: GitFile[] = []
   const unstaged: GitFile[] = []
   const untracked: GitFile[] = []
-
   const mapStatus = (code: string): FileStatus => {
     switch (code) {
       case 'M': return 'modified'
@@ -197,7 +179,6 @@ function parseStatusFiles(status: any): { staged: GitFile[]; unstaged: GitFile[]
       default: return 'modified'
     }
   }
-
   for (const file of status.files || []) {
     const { path, index, working_dir } = file
     if (index === '?' && working_dir === '?') {
@@ -214,27 +195,54 @@ function parseStatusFiles(status: any): { staged: GitFile[]; unstaged: GitFile[]
   return { staged, unstaged, untracked }
 }
 
+/** Extract flat fields from the active project for zustand reactivity */
+function flattenActiveProject(projects: ProjectState[], index: number) {
+  const p = projects[index] || emptyProject
+  return {
+    repoPath: p.repoPath || null,
+    currentBranch: p.currentBranch,
+    activeTab: p.activeTab,
+    selectedFile: p.selectedFile,
+    diffContent: p.diffContent,
+    commitMessage: p.commitMessage,
+    amendMode: p.amendMode,
+    stagedFiles: p.stagedFiles,
+    unstagedFiles: p.unstagedFiles,
+    untrackedFiles: p.untrackedFiles,
+    commits: p.commits,
+    branches: p.branches,
+    stashes: p.stashes,
+    remotes: p.remotes,
+    lastFetchAt: p.lastFetchAt
+  }
+}
+
+// ---- Store ----
+
 export const useGitStore = create<GitStore>((set, get) => {
-  // Helper to get/update active project
+  /** Get active project */
   const getProject = (): ProjectState | null => {
     const { projects, activeProjectIndex } = get()
     return projects[activeProjectIndex] || null
   }
 
+  /** Update active project + sync flat fields */
   const updateProject = (patch: Partial<ProjectState>) => {
     const { projects, activeProjectIndex } = get()
     if (!projects[activeProjectIndex]) return
     const updated = [...projects]
     updated[activeProjectIndex] = { ...updated[activeProjectIndex], ...patch }
-    set({ projects: updated })
+    set({ projects: updated, ...flattenActiveProject(updated, activeProjectIndex) })
   }
 
+  /** Update a specific project by index */
   const updateProjectAt = (index: number, patch: Partial<ProjectState>) => {
-    const { projects } = get()
+    const { projects, activeProjectIndex } = get()
     if (!projects[index]) return
     const updated = [...projects]
     updated[index] = { ...updated[index], ...patch }
-    set({ projects: updated })
+    const flat = index === activeProjectIndex ? flattenActiveProject(updated, activeProjectIndex) : {}
+    set({ projects: updated, ...flat })
   }
 
   return {
@@ -243,47 +251,43 @@ export const useGitStore = create<GitStore>((set, get) => {
     diffMode: 'side-by-side',
     isLoading: false,
     error: null,
-    blameCache: new Map(),
+    blameCache: {},
 
-    // Computed getters via get()
-    get repoPath() { return getProject()?.repoPath || null },
-    get currentBranch() { return getProject()?.currentBranch || '' },
-    get activeTab() { return getProject()?.activeTab || 'changes' },
-    get selectedFile() { return getProject()?.selectedFile || null },
-    get diffContent() { return getProject()?.diffContent || '' },
-    get commitMessage() { return getProject()?.commitMessage || '' },
-    get amendMode() { return getProject()?.amendMode || false },
-    get stagedFiles() { return getProject()?.stagedFiles || [] },
-    get unstagedFiles() { return getProject()?.unstagedFiles || [] },
-    get untrackedFiles() { return getProject()?.untrackedFiles || [] },
-    get commits() { return getProject()?.commits || [] },
-    get branches() { return getProject()?.branches || [] },
-    get stashes() { return getProject()?.stashes || [] },
-    get remotes() { return getProject()?.remotes || [] },
-    get lastFetchAt() { return getProject()?.lastFetchAt || null },
+    // Flat active project fields (reactive!)
+    repoPath: null,
+    currentBranch: '',
+    activeTab: 'changes',
+    selectedFile: null,
+    diffContent: '',
+    commitMessage: '',
+    amendMode: false,
+    stagedFiles: [],
+    unstagedFiles: [],
+    untrackedFiles: [],
+    commits: [],
+    branches: [],
+    stashes: [],
+    remotes: [],
+    lastFetchAt: null,
 
-    activeProject: getProject,
-    updateActiveProject: updateProject,
-
+    // ---- Multi-project ----
     addProject: (path) => {
       const { projects } = get()
-      // Don't add duplicate
       const existing = projects.findIndex(p => p.repoPath === path)
       if (existing >= 0) {
-        set({ activeProjectIndex: existing })
+        set({ activeProjectIndex: existing, ...flattenActiveProject(projects, existing) })
         return
       }
       const newProject = createProjectState(path)
       const updated = [...projects, newProject]
-      set({ projects: updated, activeProjectIndex: updated.length - 1 })
-      // Start watcher
+      const newIndex = updated.length - 1
+      set({ projects: updated, activeProjectIndex: newIndex, ...flattenActiveProject(updated, newIndex) })
       window.windowApi.addProjectWatcher(path)
     },
 
     removeProject: (index) => {
       const { projects, activeProjectIndex } = get()
       if (index < 0 || index >= projects.length) return
-      // Stop watcher
       window.windowApi.removeProjectWatcher(projects[index].repoPath)
       const updated = projects.filter((_, i) => i !== index)
       let newIndex = activeProjectIndex
@@ -292,16 +296,17 @@ export const useGitStore = create<GitStore>((set, get) => {
       } else if (index < activeProjectIndex) {
         newIndex = activeProjectIndex - 1
       }
-      set({ projects: updated, activeProjectIndex: newIndex })
+      set({ projects: updated, activeProjectIndex: newIndex, ...flattenActiveProject(updated, newIndex) })
     },
 
     switchProject: (index) => {
       const { projects } = get()
       if (index >= 0 && index < projects.length) {
-        set({ activeProjectIndex: index })
+        set({ activeProjectIndex: index, ...flattenActiveProject(projects, index) })
       }
     },
 
+    // ---- UI setters ----
     setActiveTab: (tab) => updateProject({ activeTab: tab }),
     setDiffMode: (mode) => set({ diffMode: mode }),
     setSelectedFile: (file) => updateProject({ selectedFile: file }),
@@ -310,6 +315,7 @@ export const useGitStore = create<GitStore>((set, get) => {
     setAmendMode: (amend) => updateProject({ amendMode: amend }),
     setError: (err) => set({ error: err }),
 
+    // ---- Refresh ----
     refreshStatus: async () => {
       const proj = getProject()
       if (!proj) return
@@ -380,11 +386,12 @@ export const useGitStore = create<GitStore>((set, get) => {
 
     refreshAll: async () => {
       set({ isLoading: true })
-      const { refreshStatus, refreshLog, refreshBranches, refreshStashes, refreshRemotes } = get()
-      await Promise.all([refreshStatus(), refreshLog(), refreshBranches(), refreshStashes(), refreshRemotes()])
+      const s = get()
+      await Promise.all([s.refreshStatus(), s.refreshLog(), s.refreshBranches(), s.refreshStashes(), s.refreshRemotes()])
       set({ isLoading: false })
     },
 
+    // ---- File ops ----
     stageFile: async (file) => {
       const proj = getProject()
       if (!proj) return
@@ -426,26 +433,11 @@ export const useGitStore = create<GitStore>((set, get) => {
       await get().refreshStatus()
     },
 
+    // ---- Diff ----
     selectFileAndShowDiff: async (file) => {
       const proj = getProject()
       if (!proj) return
       updateProject({ selectedFile: file })
-      try {
-        let diffText = ''
-        if (file.status === 'untracked') {
-          const content = await window.git.showFile(proj.repoPath, file.path)
-          const lines = content.split('\n')
-          diffText = `diff --git a/${file.path} b/${file.path}\nnew file mode 100644\n--- /dev/null\n+++ b/${file.path}\n@@ -0,0 +1,${lines.length} @@\n${lines.map(l => `+${l}`).join('\n')}\n`
-        } else if (file.staged) {
-          diffText = await window.git.diffStaged(proj.repoPath, file.path)
-        } else {
-          diffText = await window.git.diff(proj.repoPath, file.path)
-        }
-        updateProject({ diffContent: diffText })
-      } catch (err: any) {
-        updateProject({ diffContent: '' })
-        set({ error: err.message })
-      }
     },
 
     showCommitDiff: async (hash) => {
@@ -459,6 +451,7 @@ export const useGitStore = create<GitStore>((set, get) => {
       }
     },
 
+    // ---- Git ops ----
     doCommit: async () => {
       const proj = getProject()
       if (!proj || !proj.commitMessage.trim()) return
@@ -487,23 +480,15 @@ export const useGitStore = create<GitStore>((set, get) => {
     doPush: async () => {
       const proj = getProject()
       if (!proj) return
-      try {
-        await window.git.push(proj.repoPath)
-        await get().refreshAll()
-      } catch (err: any) {
-        set({ error: err.message })
-      }
+      try { await window.git.push(proj.repoPath); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
     },
 
     doPull: async () => {
       const proj = getProject()
       if (!proj) return
-      try {
-        await window.git.pull(proj.repoPath)
-        await get().refreshAll()
-      } catch (err: any) {
-        set({ error: err.message })
-      }
+      try { await window.git.pull(proj.repoPath); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
     },
 
     doFetch: async () => {
@@ -518,122 +503,92 @@ export const useGitStore = create<GitStore>((set, get) => {
       }
     },
 
+    // ---- Branch ----
     createBranch: async (name, startPoint) => {
       const proj = getProject()
       if (!proj) return
-      try {
-        await window.git.createBranch(proj.repoPath, name, startPoint)
-        await get().refreshAll()
-      } catch (err: any) {
-        set({ error: err.message })
-      }
+      try { await window.git.createBranch(proj.repoPath, name, startPoint); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
     },
 
     switchBranch: async (name) => {
       const proj = getProject()
       if (!proj) return
-      try {
-        await window.git.checkout(proj.repoPath, name)
-        await get().refreshAll()
-      } catch (err: any) {
-        set({ error: err.message })
-      }
+      try { await window.git.checkout(proj.repoPath, name); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
     },
 
     deleteBranch: async (name, force) => {
       const proj = getProject()
       if (!proj) return
-      try {
-        await window.git.deleteBranch(proj.repoPath, name, force)
-        await get().refreshAll()
-      } catch (err: any) {
-        set({ error: err.message })
-      }
+      try { await window.git.deleteBranch(proj.repoPath, name, force); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
     },
 
     mergeBranch: async (name) => {
       const proj = getProject()
       if (!proj) return
-      try {
-        await window.git.merge(proj.repoPath, name)
-        await get().refreshAll()
-      } catch (err: any) {
-        set({ error: err.message })
-      }
+      try { await window.git.merge(proj.repoPath, name); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
     },
 
+    // ---- Stash ----
     saveStash: async (message) => {
       const proj = getProject()
       if (!proj) return
-      try {
-        await window.git.stashSave(proj.repoPath, message)
-        await get().refreshAll()
-      } catch (err: any) {
-        set({ error: err.message })
-      }
+      try { await window.git.stashSave(proj.repoPath, message); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
     },
 
     popStash: async (index) => {
       const proj = getProject()
       if (!proj) return
-      try {
-        await window.git.stashPop(proj.repoPath, index)
-        await get().refreshAll()
-      } catch (err: any) {
-        set({ error: err.message })
-      }
+      try { await window.git.stashPop(proj.repoPath, index); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
     },
 
     applyStash: async (index) => {
       const proj = getProject()
       if (!proj) return
-      try {
-        await window.git.stashApply(proj.repoPath, index)
-        await get().refreshAll()
-      } catch (err: any) {
-        set({ error: err.message })
-      }
+      try { await window.git.stashApply(proj.repoPath, index); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
     },
 
     dropStash: async (index) => {
       const proj = getProject()
       if (!proj) return
-      try {
-        await window.git.stashDrop(proj.repoPath, index)
-        await get().refreshAll()
-      } catch (err: any) {
-        set({ error: err.message })
-      }
+      try { await window.git.stashDrop(proj.repoPath, index); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
     },
 
+    // ---- Blame ----
     getBlame: async (filePath) => {
       const proj = getProject()
       if (!proj) return []
       const cacheKey = `${proj.repoPath}:${filePath}`
       const { blameCache } = get()
-      if (blameCache.has(cacheKey)) return blameCache.get(cacheKey)!
+      if (blameCache[cacheKey]) return blameCache[cacheKey]
       try {
         const result = await window.git.blame(proj.repoPath, filePath)
         const parsed = parseBlame(result)
-        blameCache.set(cacheKey, parsed)
-        set({ blameCache: new Map(blameCache) })
+        set({ blameCache: { ...blameCache, [cacheKey]: parsed } })
         return parsed
       } catch {
         return []
       }
     },
 
+    // ---- Auto fetch ----
     autoFetchAll: async () => {
-      const { projects } = get()
+      const { projects, activeProjectIndex } = get()
       for (let i = 0; i < projects.length; i++) {
         try {
           await window.git.fetch(projects[i].repoPath)
           updateProjectAt(i, { lastFetchAt: Date.now() })
         } catch {
-          // silent fail for auto-fetch
+          // silent
         }
       }
-      // Refresh active project after fetch
       await get().refreshAll()
     }
   }
@@ -643,28 +598,22 @@ function parseBlame(raw: string): BlameInfo[] {
   const lines: BlameInfo[] = []
   const blocks = raw.split('\n')
   let current: Partial<BlameInfo> = {}
-  let lineNum = 0
 
   for (const line of blocks) {
     if (/^[0-9a-f]{40}\s/.test(line)) {
       const parts = line.split(' ')
       current.hash = parts[0]
-      lineNum = parseInt(parts[2] || parts[1], 10)
-      current.line = lineNum
+      current.line = parseInt(parts[2] || parts[1], 10)
     } else if (line.startsWith('author ')) {
       current.author = line.substring(7)
     } else if (line.startsWith('author-mail ')) {
       current.authorEmail = line.substring(12).replace(/[<>]/g, '')
     } else if (line.startsWith('author-time ')) {
-      const ts = parseInt(line.substring(12), 10)
-      current.date = new Date(ts * 1000).toLocaleString()
+      current.date = new Date(parseInt(line.substring(12), 10) * 1000).toLocaleString()
     } else if (line.startsWith('summary ')) {
       current.summary = line.substring(8)
     } else if (line.startsWith('\t')) {
-      // Content line = end of block
-      if (current.hash && current.author) {
-        lines.push(current as BlameInfo)
-      }
+      if (current.hash && current.author) lines.push(current as BlameInfo)
       current = {}
     }
   }
