@@ -323,6 +323,27 @@ export function registerGitHandlers(): void {
     await git.tag(args)
   })
 
+  // List tags with details
+  ipcMain.handle('git:tags', async (_event, repoPath: string) => {
+    const git = getGit(repoPath)
+    try {
+      const result = await git.raw(['tag', '-l', '--format=%(refname:short)|%(objectname:short)|%(creatordate:iso)'])
+      if (!result.trim()) return []
+      return result.trim().split('\n').filter(Boolean).map(line => {
+        const [name, hash, date] = line.split('|')
+        return { name: name || '', hash: hash || '', date: date || '' }
+      })
+    } catch {
+      return []
+    }
+  })
+
+  // Push a tag to remote
+  ipcMain.handle('git:pushTag', async (_event, repoPath: string, name: string) => {
+    const git = getGit(repoPath)
+    await git.push(['origin', name])
+  })
+
   // Delete tag
   ipcMain.handle('git:deleteTag', async (_event, repoPath: string, name: string) => {
     const git = getGit(repoPath)
@@ -339,6 +360,40 @@ export function registerGitHandlers(): void {
   ipcMain.handle('git:rebaseBranch', async (_event, repoPath: string, onto: string) => {
     const git = getGit(repoPath)
     await git.rebase([onto])
+  })
+
+  // Stash show (diff for a stash entry)
+  ipcMain.handle('git:stashShow', async (_event, repoPath: string, index: number) => {
+    const git = getGit(repoPath)
+    return git.raw(['stash', 'show', '-p', `stash@{${index}}`])
+  })
+
+  // Apply a patch to the index (for partial/hunk staging)
+  ipcMain.handle('git:applyPatch', async (_event, repoPath: string, patchContent: string, reverse: boolean) => {
+    const git = getGit(repoPath)
+    const args = ['apply', '--cached']
+    if (reverse) args.push('--reverse')
+    args.push('-')
+    // Use raw with stdin via a temp approach: write patch to temp file, then apply
+    const fs = await import('fs/promises')
+    const path = await import('path')
+    const os = await import('os')
+    const tmpFile = path.join(os.tmpdir(), `git-patch-${Date.now()}.patch`)
+    try {
+      await fs.writeFile(tmpFile, patchContent, 'utf-8')
+      args.pop() // remove '-'
+      args.push(tmpFile)
+      await git.raw(args)
+    } finally {
+      try { await fs.unlink(tmpFile) } catch { /* ignore */ }
+    }
+  })
+
+  // Get diff with hunk boundaries for a file (unstaged)
+  ipcMain.handle('git:diffHunks', async (_event, repoPath: string, filePath: string, staged: boolean) => {
+    const git = getGit(repoPath)
+    const args = staged ? ['diff', '--cached', filePath] : ['diff', filePath]
+    return git.raw(args)
   })
 
   // Log for a single file

@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { useGitStore, BranchInfo } from '../stores/gitStore'
+import { useGitStore, BranchInfo, TagInfo } from '../stores/gitStore'
 import { ContextMenu, MenuItem } from './ContextMenu'
 import { InputDialog } from './InputDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { GitGraph, ICommitItem } from 'git-graph-svg'
 
-type BottomTab = 'log' | 'terminal'
+type BottomTab = 'log' | 'stash' | 'terminal'
 
 interface GraphCommit {
   hash: string; parents: string[]; author_name: string; author_email: string
@@ -28,12 +28,14 @@ export function BottomPanel({ height, collapsed, onToggle }: {
         <span className="text-[11px] font-medium text-text-secondary mr-1 flex-shrink-0">Git</span>
         <TabBtn label={`日志: ${currentBranch || 'HEAD'}`} active={activeTab === 'log'}
           onClick={() => { setActiveTab('log'); if (collapsed) onToggle() }} />
+        <TabBtn label="暂存" active={activeTab === 'stash'}
+          onClick={() => { setActiveTab('stash'); if (collapsed) onToggle() }} />
         <TabBtn label="终端" active={activeTab === 'terminal'}
           onClick={() => { setActiveTab('terminal'); if (collapsed) onToggle() }} />
       </div>
       {!collapsed && (
         <div className="flex-1 overflow-hidden">
-          {activeTab === 'log' ? <LogPanel /> : <TerminalPanel />}
+          {activeTab === 'log' ? <LogPanel /> : activeTab === 'stash' ? <StashPanel /> : <TerminalPanel />}
         </div>
       )}
     </div>
@@ -52,9 +54,9 @@ function TabBtn({ label, active, onClick }: { label: string; active: boolean; on
 // ============ LOG PANEL ============
 
 function LogPanel() {
-  const { branches, currentBranch, repoPath, refreshBranches,
+  const { branches, tags, currentBranch, repoPath, refreshBranches, refreshTags,
     switchBranch, deleteBranch, mergeBranch, showCommitFileDiff, clearCommitDiff,
-    cherryPick, revertCommit, resetBranch, createBranch, createTag,
+    cherryPick, revertCommit, resetBranch, createBranch, createTag, deleteTag, pushTag,
     renameBranch, rebaseBranch, doPush, doPull, doFetch } = useGitStore()
 
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([])
@@ -62,6 +64,7 @@ function LogPanel() {
   const [commitFiles, setCommitFiles] = useState<{ status: string; path: string }[]>([])
   const [search, setSearch] = useState('')
   const [branchCtx, setBranchCtx] = useState<{ x: number; y: number; branch: BranchInfo } | null>(null)
+  const [tagCtx, setTagCtx] = useState<{ x: number; y: number; tag: TagInfo } | null>(null)
   const [commitCtx, setCommitCtx] = useState<{ x: number; y: number; commit: GraphCommit } | null>(null)
   const [fileCtx, setFileCtx] = useState<{ x: number; y: number; file: { status: string; path: string }; hash: string } | null>(null)
   const [inputDialog, setInputDialog] = useState<{ title: string; placeholder: string; onConfirm: (v: string) => void } | null>(null)
@@ -97,6 +100,7 @@ function LogPanel() {
 
   useEffect(() => {
     refreshBranches()
+    refreshTags()
     loadGraph()
   }, [repoPath])
 
@@ -133,18 +137,48 @@ function LogPanel() {
     showCommitFileDiff(selectedHash, f)
   }
 
+  // Branch search
+  const [branchSearch, setBranchSearch] = useState('')
+
   // Branch tree data
-  const localBranches = branches.filter(b => !b.isRemote)
-  const remoteBranches = branches.filter(b => b.isRemote)
+  const allLocalBranches = branches.filter(b => !b.isRemote)
+  const allRemoteBranches = branches.filter(b => b.isRemote)
+  const bq = branchSearch.toLowerCase().trim()
+  const localBranches = bq ? allLocalBranches.filter(b => b.name.toLowerCase().includes(bq)) : allLocalBranches
+  const remoteBranches = bq ? allRemoteBranches.filter(b => b.name.toLowerCase().includes(bq)) : allRemoteBranches
 
   return (
-    <div className="flex h-full" onClick={() => { setBranchCtx(null); setCommitCtx(null); setFileCtx(null) }}>
+    <div className="flex h-full" onClick={() => { setBranchCtx(null); setCommitCtx(null); setFileCtx(null); setTagCtx(null) }}>
       {/* Branch tree */}
       <div className="w-[180px] border-r border-border overflow-y-auto flex-shrink-0 text-[11px] select-none">
+        {/* Branch search input */}
+        <div className="px-1.5 py-1 border-b border-border">
+          <input value={branchSearch} onChange={e => setBranchSearch(e.target.value)}
+            placeholder="搜索分支..."
+            className="w-full bg-bg-tertiary border border-border rounded px-1.5 py-0.5 text-[10px] text-text-primary outline-none focus:border-border-focus placeholder:text-text-secondary" />
+        </div>
         <FolderBranchTree title="本地" branches={localBranches} currentBranch={currentBranch}
           onSwitch={switchBranch} onContext={(e, b) => { e.preventDefault(); setBranchCtx({ x: e.clientX, y: e.clientY, branch: b }) }} />
         <RemoteBranchTree branches={remoteBranches} onSwitch={switchBranch}
           onContext={(e, b) => { e.preventDefault(); setBranchCtx({ x: e.clientX, y: e.clientY, branch: b }) }} />
+
+        {/* Tag tree section */}
+        <TagTree tags={bq ? tags.filter(t => t.name.toLowerCase().includes(bq)) : tags}
+          onContext={(e, t) => { e.preventDefault(); setTagCtx({ x: e.clientX, y: e.clientY, tag: t }) }}
+          onCheckout={(name) => switchBranch(name)} />
+
+        {/* Tag context menu */}
+        {tagCtx && (() => {
+          const t = tagCtx.tag
+          const items: MenuItem[] = [
+            { label: `检出标签 '${t.name}'`, onClick: () => { switchBranch(t.name); setTagCtx(null) } },
+            { label: '', onClick: () => {}, separator: true },
+            { label: '推送标签到远程', onClick: () => { pushTag(t.name); setTagCtx(null) } },
+            { label: '', onClick: () => {}, separator: true },
+            { label: `删除标签 '${t.name}'`, onClick: () => { deleteTag(t.name); setTagCtx(null) }, danger: true },
+          ]
+          return <ContextMenu x={tagCtx.x} y={tagCtx.y} items={items} onClose={() => setTagCtx(null)} />
+        })()}
 
         {branchCtx && (() => {
           const b = branchCtx.branch
@@ -548,6 +582,119 @@ function RemoteGroupTree({ remote, tree, onSwitch, onContext }: {
         <span>{remote}</span>
       </div>
       {open && <BranchTreeNodes node={tree} depth={2} currentBranch="" onSwitch={onSwitch} onContext={onContext} />}
+    </div>
+  )
+}
+
+// ============ TAG TREE ============
+
+function TagTree({ tags, onContext, onCheckout }: {
+  tags: TagInfo[]
+  onContext: (e: React.MouseEvent, t: TagInfo) => void
+  onCheckout: (name: string) => void
+}) {
+  const [open, setOpen] = useState(true)
+
+  return (
+    <div>
+      <div className="px-2 py-[3px] flex items-center gap-1 cursor-pointer hover:bg-bg-hover text-text-secondary font-medium"
+        onClick={() => setOpen(!open)}>
+        <span className="text-[8px]">{open ? '▼' : '▶'}</span>
+        <span>标签</span>
+        {tags.length > 0 && <span className="text-[9px] ml-auto">{tags.length}</span>}
+      </div>
+      {open && tags.map(t => (
+        <div key={t.name}
+          className="pr-2 py-[2px] flex items-center gap-1 cursor-pointer hover:bg-bg-hover text-text-primary truncate"
+          style={{ paddingLeft: 20 }}
+          onClick={() => onCheckout(t.name)}
+          onContextMenu={e => onContext(e, t)}>
+          <span className="text-[9px] text-yellow-500">🏷</span>
+          <span className="truncate">{t.name}</span>
+          <span className="text-[9px] text-text-secondary font-mono ml-auto flex-shrink-0">{t.hash}</span>
+        </div>
+      ))}
+      {open && tags.length === 0 && (
+        <div className="px-4 py-1 text-[10px] text-text-secondary">无标签</div>
+      )}
+    </div>
+  )
+}
+
+// ============ STASH PANEL ============
+
+function StashPanel() {
+  const { repoPath, stashes, refreshStashes, saveStash, popStash, applyStash, dropStash } = useGitStore()
+  const [stashMsg, setStashMsg] = useState('')
+  const [stashDiff, setStashDiff] = useState<string | null>(null)
+  const [selectedStashIdx, setSelectedStashIdx] = useState<number | null>(null)
+  const [stashCtx, setStashCtx] = useState<{ x: number; y: number; index: number } | null>(null)
+
+  useEffect(() => { refreshStashes() }, [repoPath])
+
+  const onSaveStash = async () => {
+    await saveStash(stashMsg || undefined)
+    setStashMsg('')
+  }
+
+  const showStashDiff = async (index: number) => {
+    if (!repoPath) return
+    setSelectedStashIdx(index)
+    try {
+      const diff = await window.git.stashShow(repoPath, index)
+      setStashDiff(diff)
+    } catch { setStashDiff('无法显示差异') }
+  }
+
+  return (
+    <div className="flex h-full text-[11px]" onClick={() => setStashCtx(null)}>
+      {/* Left: stash list */}
+      <div className="w-[280px] border-r border-border flex flex-col flex-shrink-0">
+        {/* Save stash */}
+        <div className="flex items-center gap-1 px-2 py-1 border-b border-border bg-bg-secondary flex-shrink-0">
+          <input value={stashMsg} onChange={e => setStashMsg(e.target.value)}
+            placeholder="暂存信息 (可选)"
+            className="flex-1 bg-bg-tertiary border border-border rounded px-1.5 py-0.5 text-[10px] text-text-primary outline-none focus:border-border-focus placeholder:text-text-secondary"
+            onKeyDown={e => e.key === 'Enter' && onSaveStash()} />
+          <button onClick={onSaveStash}
+            className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] flex-shrink-0">暂存</button>
+        </div>
+        {/* Stash entries */}
+        <div className="flex-1 overflow-y-auto">
+          {stashes.length === 0 && (
+            <div className="p-3 text-center text-text-secondary text-xs">无暂存记录</div>
+          )}
+          {stashes.map(s => (
+            <div key={s.index}
+              className={`px-2 py-1 cursor-pointer border-b border-border/30 ${selectedStashIdx === s.index ? 'bg-bg-active' : 'hover:bg-bg-hover'}`}
+              onClick={() => showStashDiff(s.index)}
+              onContextMenu={e => { e.preventDefault(); setStashCtx({ x: e.clientX, y: e.clientY, index: s.index }) }}>
+              <div className="text-text-primary truncate">{s.message || `stash@{${s.index}}`}</div>
+              <div className="text-[10px] text-text-secondary">{s.date ? new Date(s.date).toLocaleString() : ''}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Right: stash diff */}
+      <div className="flex-1 overflow-auto p-2 font-mono text-[10px] bg-[#1a1a1a]">
+        {stashDiff ? (
+          <pre className="text-text-primary whitespace-pre-wrap">{stashDiff}</pre>
+        ) : (
+          <div className="text-text-secondary flex items-center justify-center h-full">选择暂存记录以查看差异</div>
+        )}
+      </div>
+
+      {/* Stash context menu */}
+      {stashCtx && (() => {
+        const idx = stashCtx.index
+        const items: MenuItem[] = [
+          { label: '应用 (Apply)', onClick: () => { applyStash(idx); setStashCtx(null) } },
+          { label: '弹出 (Pop)', onClick: () => { popStash(idx); setStashCtx(null); setSelectedStashIdx(null); setStashDiff(null) } },
+          { label: '', onClick: () => {}, separator: true },
+          { label: '删除 (Drop)', onClick: () => { dropStash(idx); setStashCtx(null); setSelectedStashIdx(null); setStashDiff(null) }, danger: true },
+        ]
+        return <ContextMenu x={stashCtx.x} y={stashCtx.y} items={items} onClose={() => setStashCtx(null)} />
+      })()}
     </div>
   )
 }

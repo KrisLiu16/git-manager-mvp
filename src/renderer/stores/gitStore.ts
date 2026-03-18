@@ -36,6 +36,12 @@ export interface StashEntry {
   index: number
 }
 
+export interface TagInfo {
+  name: string
+  hash: string
+  date: string
+}
+
 export interface RemoteInfo {
   name: string
   refs: { fetch: string; push: string }
@@ -66,6 +72,7 @@ export interface ProjectState {
   branches: BranchInfo[]
   stashes: StashEntry[]
   remotes: RemoteInfo[]
+  tags: TagInfo[]
   lastFetchAt: number | null
   ahead: number
   behind: number
@@ -77,7 +84,7 @@ function createProjectState(repoPath: string): ProjectState {
     repoPath, name, currentBranch: '', activeTab: 'changes',
     selectedFile: null, diffContent: '', commitMessage: '', amendMode: false,
     stagedFiles: [], unstagedFiles: [], untrackedFiles: [],
-    commits: [], branches: [], stashes: [], remotes: [], lastFetchAt: null,
+    commits: [], branches: [], stashes: [], remotes: [], tags: [], lastFetchAt: null,
     ahead: 0, behind: 0
   }
 }
@@ -103,6 +110,19 @@ interface GitStore {
   showCommitFileDiff: (hash: string, file: { status: string; path: string }) => Promise<void>
   clearCommitDiff: () => void
 
+  // File history
+  fileHistoryPath: string | null
+  fileHistoryCommits: CommitInfo[]
+  showFileHistory: (filePath: string) => Promise<void>
+  closeFileHistory: () => void
+
+  // Blame view
+  blameFilePath: string | null
+  blameData: BlameInfo[]
+  blameFileContent: string
+  showBlameView: (filePath: string) => Promise<void>
+  closeBlameView: () => void
+
   // Flat "active project" fields — zustand-reactive, synced on every update
   repoPath: string | null
   currentBranch: string
@@ -118,6 +138,7 @@ interface GitStore {
   branches: BranchInfo[]
   stashes: StashEntry[]
   remotes: RemoteInfo[]
+  tags: TagInfo[]
   lastFetchAt: number | null
   ahead: number
   behind: number
@@ -126,6 +147,14 @@ interface GitStore {
   addProject: (path: string) => void
   removeProject: (index: number) => void
   switchProject: (index: number) => void
+
+  // Multi-select files
+  selectedFiles: Set<string>
+  toggleFileSelection: (path: string, multi: boolean) => void
+  clearFileSelection: () => void
+  stageSelected: () => Promise<void>
+  unstageSelected: () => Promise<void>
+  discardSelected: () => Promise<void>
 
   // UI setters
   setActiveTab: (tab: ViewTab) => void
@@ -142,6 +171,7 @@ interface GitStore {
   refreshBranches: () => Promise<void>
   refreshStashes: () => Promise<void>
   refreshRemotes: () => Promise<void>
+  refreshTags: () => Promise<void>
   refreshAll: () => Promise<void>
 
   // File ops
@@ -171,6 +201,7 @@ interface GitStore {
   resetBranch: (hash: string, mode: 'soft' | 'mixed' | 'hard') => Promise<void>
   createTag: (name: string, hash?: string) => Promise<void>
   deleteTag: (name: string) => Promise<void>
+  pushTag: (name: string) => Promise<void>
   renameBranch: (oldName: string, newName: string) => Promise<void>
   rebaseBranch: (onto: string) => Promise<void>
 
@@ -234,6 +265,7 @@ function flattenActiveProject(projects: ProjectState[], index: number) {
     branches: p.branches,
     stashes: p.stashes,
     remotes: p.remotes,
+    tags: p.tags,
     lastFetchAt: p.lastFetchAt,
     ahead: p.ahead,
     behind: p.behind
@@ -276,6 +308,58 @@ export const useGitStore = create<GitStore>((set, get) => {
     error: null,
     blameCache: {},
 
+    // Multi-select files
+    selectedFiles: new Set<string>(),
+
+    toggleFileSelection: (path, multi) => {
+      const { selectedFiles } = get()
+      const next = new Set(multi ? selectedFiles : [])
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      set({ selectedFiles: next })
+    },
+
+    clearFileSelection: () => set({ selectedFiles: new Set<string>() }),
+
+    stageSelected: async () => {
+      const proj = getProject()
+      if (!proj) return
+      const { selectedFiles } = get()
+      const paths = Array.from(selectedFiles)
+      if (paths.length === 0) return
+      try {
+        await window.git.add(proj.repoPath, paths)
+        set({ selectedFiles: new Set<string>() })
+        await get().refreshStatus()
+      } catch (err: any) { set({ error: err.message }) }
+    },
+
+    unstageSelected: async () => {
+      const proj = getProject()
+      if (!proj) return
+      const { selectedFiles } = get()
+      const paths = Array.from(selectedFiles)
+      if (paths.length === 0) return
+      try {
+        await window.git.unstage(proj.repoPath, paths)
+        set({ selectedFiles: new Set<string>() })
+        await get().refreshStatus()
+      } catch (err: any) { set({ error: err.message }) }
+    },
+
+    discardSelected: async () => {
+      const proj = getProject()
+      if (!proj) return
+      const { selectedFiles } = get()
+      const paths = Array.from(selectedFiles)
+      if (paths.length === 0) return
+      try {
+        await window.git.discard(proj.repoPath, paths)
+        set({ selectedFiles: new Set<string>() })
+        await get().refreshStatus()
+      } catch (err: any) { set({ error: err.message }) }
+    },
+
     // Flat active project fields (reactive!)
     repoPath: null,
     currentBranch: '',
@@ -291,6 +375,7 @@ export const useGitStore = create<GitStore>((set, get) => {
     branches: [],
     stashes: [],
     remotes: [],
+    tags: [],
     lastFetchAt: null,
     ahead: 0,
     behind: 0,
@@ -300,6 +385,49 @@ export const useGitStore = create<GitStore>((set, get) => {
     commitDiffModified: '',
     commitDiffPath: null,
     commitDiffHash: null,
+
+    // File history
+    fileHistoryPath: null,
+    fileHistoryCommits: [],
+
+    // Blame view
+    blameFilePath: null,
+    blameData: [],
+    blameFileContent: '',
+
+    showFileHistory: async (filePath) => {
+      const proj = getProject()
+      if (!proj) return
+      try {
+        const log = await window.git.logFile(proj.repoPath, filePath, 100)
+        const commits: CommitInfo[] = (log.all || []).map((c: any) => ({
+          hash: c.hash, date: c.date, message: c.message,
+          author_name: c.author_name, author_email: c.author_email, refs: c.refs || ''
+        }))
+        set({ fileHistoryPath: filePath, fileHistoryCommits: commits })
+      } catch (err: any) {
+        set({ error: err.message })
+      }
+    },
+
+    closeFileHistory: () => set({ fileHistoryPath: null, fileHistoryCommits: [] }),
+
+    showBlameView: async (filePath) => {
+      const proj = getProject()
+      if (!proj) return
+      try {
+        const [blameRaw, content] = await Promise.all([
+          window.git.blame(proj.repoPath, filePath),
+          window.git.showFile(proj.repoPath, filePath)
+        ])
+        const parsed = parseBlame(blameRaw)
+        set({ blameFilePath: filePath, blameData: parsed, blameFileContent: content })
+      } catch (err: any) {
+        set({ error: err.message })
+      }
+    },
+
+    closeBlameView: () => set({ blameFilePath: null, blameData: [], blameFileContent: '' }),
 
     showCommitFileDiff: async (hash, file) => {
       const proj = getProject()
@@ -439,10 +567,21 @@ export const useGitStore = create<GitStore>((set, get) => {
       }
     },
 
+    refreshTags: async () => {
+      const proj = getProject()
+      if (!proj) return
+      try {
+        const tags = await window.git.tags(proj.repoPath)
+        updateProject({ tags: tags || [] })
+      } catch {
+        updateProject({ tags: [] })
+      }
+    },
+
     refreshAll: async () => {
       set({ isLoading: true })
       const s = get()
-      await Promise.all([s.refreshStatus(), s.refreshLog(), s.refreshBranches(), s.refreshStashes(), s.refreshRemotes()])
+      await Promise.all([s.refreshStatus(), s.refreshLog(), s.refreshBranches(), s.refreshStashes(), s.refreshRemotes(), s.refreshTags()])
       set({ isLoading: false })
     },
 
@@ -619,6 +758,13 @@ export const useGitStore = create<GitStore>((set, get) => {
       const proj = getProject()
       if (!proj) return
       try { await window.git.deleteTag(proj.repoPath, name); await get().refreshAll() }
+      catch (err: any) { set({ error: err.message }) }
+    },
+
+    pushTag: async (name) => {
+      const proj = getProject()
+      if (!proj) return
+      try { await window.git.pushTag(proj.repoPath, name) }
       catch (err: any) { set({ error: err.message }) }
     },
 

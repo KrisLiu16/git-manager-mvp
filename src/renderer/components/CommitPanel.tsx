@@ -8,7 +8,10 @@ export function CommitPanel() {
     amendMode, setAmendMode,
     stageFile, unstageFile, stageAll, unstageAll, discardFile,
     doCommit, doCommitAndPush, refreshAll,
-    doPush, doPull, doFetch
+    doPush, doPull, doFetch,
+    showFileHistory, showBlameView,
+    selectedFiles, toggleFileSelection, clearFileSelection,
+    stageSelected, unstageSelected, discardSelected
   } = useGitStore()
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: GitFile } | null>(null)
@@ -16,6 +19,7 @@ export function CommitPanel() {
 
   const allChanges = [...unstagedFiles, ...untrackedFiles]
   const canCommit = commitMessage.trim().length > 0 && stagedFiles.length > 0
+  const hasMultiSelect = selectedFiles.size > 1
 
   return (
     <div className="flex flex-col h-full select-none" onClick={closeCtx}>
@@ -36,6 +40,17 @@ export function CommitPanel() {
         </ToolBtn>
       </div>
 
+      {/* Multi-select batch actions */}
+      {hasMultiSelect && (
+        <div className="flex items-center gap-1 px-2 py-1 bg-bg-tertiary border-b border-border flex-shrink-0">
+          <span className="text-[10px] text-text-secondary mr-auto">已选 {selectedFiles.size} 个文件</span>
+          <button onClick={stageSelected} className="px-1.5 py-0.5 text-[10px] bg-blue-600 hover:bg-blue-700 text-white rounded">暂存选中</button>
+          <button onClick={unstageSelected} className="px-1.5 py-0.5 text-[10px] bg-bg-hover hover:bg-bg-active text-text-primary rounded border border-border">取消暂存选中</button>
+          <button onClick={discardSelected} className="px-1.5 py-0.5 text-[10px] text-status-deleted hover:bg-bg-hover rounded border border-border">回滚选中</button>
+          <button onClick={clearFileSelection} className="px-1 py-0.5 text-[10px] text-text-secondary hover:text-text-primary">✕</button>
+        </div>
+      )}
+
       {/* File changes */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {/* Staged */}
@@ -46,7 +61,11 @@ export function CommitPanel() {
             color="text-status-added"
             files={stagedFiles}
             selectedFile={selectedFile}
-            onSelect={selectFileAndShowDiff}
+            selectedFiles={selectedFiles}
+            onSelect={(f, e) => {
+              if (e && (e.metaKey || e.ctrlKey)) { toggleFileSelection(f.path, true) }
+              else { clearFileSelection(); selectFileAndShowDiff(f) }
+            }}
             onContextMenu={(e, f) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, file: f }) }}
           />
         )}
@@ -59,7 +78,11 @@ export function CommitPanel() {
             color="text-status-modified"
             files={allChanges}
             selectedFile={selectedFile}
-            onSelect={selectFileAndShowDiff}
+            selectedFiles={selectedFiles}
+            onSelect={(f, e) => {
+              if (e && (e.metaKey || e.ctrlKey)) { toggleFileSelection(f.path, true) }
+              else { clearFileSelection(); selectFileAndShowDiff(f) }
+            }}
             onContextMenu={(e, f) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, file: f }) }}
           />
         )}
@@ -110,6 +133,8 @@ export function CommitPanel() {
           onUnstage={() => { unstageFile(contextMenu.file); closeCtx() }}
           onDiscard={() => { discardFile(contextMenu.file); closeCtx() }}
           onDiff={() => { selectFileAndShowDiff(contextMenu.file); closeCtx() }}
+          onFileHistory={() => { showFileHistory(contextMenu.file.path); closeCtx() }}
+          onBlame={() => { showBlameView(contextMenu.file.path); closeCtx() }}
         />
       )}
     </div>
@@ -125,10 +150,11 @@ function ToolBtn({ children, title, onClick }: { children: React.ReactNode; titl
   )
 }
 
-function FileSection({ title, count, color, files, selectedFile, onSelect, onContextMenu }: {
+function FileSection({ title, count, color, files, selectedFile, selectedFiles, onSelect, onContextMenu }: {
   title: string; count: number; color: string
   files: GitFile[]; selectedFile: GitFile | null
-  onSelect: (f: GitFile) => void
+  selectedFiles: Set<string>
+  onSelect: (f: GitFile, e?: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent, f: GitFile) => void
 }) {
   const [open, setOpen] = useState(true)
@@ -142,15 +168,16 @@ function FileSection({ title, count, color, files, selectedFile, onSelect, onCon
       </div>
       {open && files.map(f => (
         <FileRow key={`${f.path}-${f.staged}`} file={f}
-          isSelected={selectedFile?.path === f.path && selectedFile?.staged === f.staged}
-          onClick={() => onSelect(f)} onContextMenu={e => onContextMenu(e, f)} />
+          isSelected={(selectedFile?.path === f.path && selectedFile?.staged === f.staged) || selectedFiles.has(f.path)}
+          isMultiSelected={selectedFiles.has(f.path)}
+          onClick={(e) => onSelect(f, e)} onContextMenu={e => onContextMenu(e, f)} />
       ))}
     </div>
   )
 }
 
-function FileRow({ file, isSelected, onClick, onContextMenu }: {
-  file: GitFile; isSelected: boolean; onClick: () => void; onContextMenu: (e: React.MouseEvent) => void
+function FileRow({ file, isSelected, isMultiSelected, onClick, onContextMenu }: {
+  file: GitFile; isSelected: boolean; isMultiSelected?: boolean; onClick: (e: React.MouseEvent) => void; onContextMenu: (e: React.MouseEvent) => void
 }) {
   const statusColors: Record<string, string> = {
     added: 'text-status-added', modified: 'text-status-modified', deleted: 'text-status-deleted',
@@ -165,6 +192,7 @@ function FileRow({ file, isSelected, onClick, onContextMenu }: {
   return (
     <div className={`flex items-center gap-1.5 px-3 py-[3px] cursor-pointer text-[11px] ${isSelected ? 'bg-bg-active' : 'hover:bg-bg-hover'}`}
       onClick={onClick} onContextMenu={onContextMenu}>
+      {isMultiSelected && <span className="text-blue-400 text-[9px] flex-shrink-0">✓</span>}
       <span className="truncate flex-1">
         <span className="text-text-primary">{fileName}</span>
         {dirPath && <span className="text-text-secondary ml-1 text-[10px]">{dirPath}</span>}
@@ -176,9 +204,10 @@ function FileRow({ file, isSelected, onClick, onContextMenu }: {
   )
 }
 
-function FileContextMenu({ x, y, file, onClose, onStage, onUnstage, onDiscard, onDiff }: {
+function FileContextMenu({ x, y, file, onClose, onStage, onUnstage, onDiscard, onDiff, onFileHistory, onBlame }: {
   x: number; y: number; file: GitFile; onClose: () => void
   onStage: () => void; onUnstage: () => void; onDiscard: () => void; onDiff: () => void
+  onFileHistory: () => void; onBlame: () => void
 }) {
   return (
     <>
@@ -192,6 +221,13 @@ function FileContextMenu({ x, y, file, onClose, onStage, onUnstage, onDiscard, o
           <div className="context-menu-item" onClick={onStage}>暂存文件</div>
         )}
         <div className="context-menu-separator" />
+        {file.status !== 'untracked' && (
+          <>
+            <div className="context-menu-item" onClick={onFileHistory}>显示文件历史</div>
+            <div className="context-menu-item" onClick={onBlame}>显示 Blame</div>
+            <div className="context-menu-separator" />
+          </>
+        )}
         <div className="context-menu-item" onClick={() => { navigator.clipboard.writeText(file.path); onClose() }}>复制文件路径</div>
         <div className="context-menu-item" onClick={() => { navigator.clipboard.writeText(file.path.split('/').pop() || file.path); onClose() }}>复制文件名</div>
         {file.status !== 'untracked' && !file.staged && (

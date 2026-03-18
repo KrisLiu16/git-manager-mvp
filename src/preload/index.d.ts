@@ -24,6 +24,7 @@ interface GitApi {
   stashPop(repoPath: string, index: number): Promise<void>
   stashApply(repoPath: string, index: number): Promise<void>
   stashDrop(repoPath: string, index: number): Promise<void>
+  stashShow(repoPath: string, index: number): Promise<string>
   isRepo(repoPath: string): Promise<boolean>
   remotes(repoPath: string): Promise<any>
   currentBranch(repoPath: string): Promise<string>
@@ -36,10 +37,14 @@ interface GitApi {
   cherryPick(repoPath: string, hash: string): Promise<void>
   revertCommit(repoPath: string, hash: string): Promise<void>
   resetBranch(repoPath: string, hash: string, mode: string): Promise<void>
+  tags(repoPath: string): Promise<{ name: string; hash: string; date: string }[]>
   createTag(repoPath: string, name: string, hash?: string): Promise<void>
   deleteTag(repoPath: string, name: string): Promise<void>
+  pushTag(repoPath: string, name: string): Promise<void>
   renameBranch(repoPath: string, oldName: string, newName: string): Promise<void>
   rebaseBranch(repoPath: string, onto: string): Promise<void>
+  applyPatch(repoPath: string, patchContent: string, reverse: boolean): Promise<void>
+  diffHunks(repoPath: string, filePath: string, staged: boolean): Promise<string>
   logFile(repoPath: string, filePath: string, maxCount?: number): Promise<any>
   aheadBehind(repoPath: string): Promise<{ ahead: number; behind: number }>
 }

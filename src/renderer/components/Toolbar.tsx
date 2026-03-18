@@ -13,12 +13,12 @@ export function Toolbar() {
         <PullIcon />
         <span>拉取</span>
       </ToolbarButton>
-      <ToolbarButton onClick={doPush} disabled={isLoading} title="推送">
+      <ToolbarButton onClick={doPush} disabled={isLoading} title="推送 (⌘⇧K)">
         <PushIcon />
         <span>推送</span>
       </ToolbarButton>
       <div className="w-px h-4 bg-border mx-1" />
-      <ToolbarButton onClick={refreshAll} disabled={isLoading} title="刷新">
+      <ToolbarButton onClick={refreshAll} disabled={isLoading} title="刷新 (F5)">
         <RefreshIcon />
         <span>刷新</span>
       </ToolbarButton>
