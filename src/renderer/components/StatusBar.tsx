@@ -13,20 +13,20 @@ export function StatusBar() {
       <div className="flex items-center gap-3">
         <span className="flex items-center gap-1">
           <BranchSmallIcon />
-          {currentBranch || 'No branch'}
+          {currentBranch || '无分支'}
         </span>
         {total > 0 && (
           <span>
-            {stagedFiles.length > 0 && `${stagedFiles.length} staged`}
+            {stagedFiles.length > 0 && `${stagedFiles.length} 已暂存`}
             {stagedFiles.length > 0 && unstagedFiles.length > 0 && ' \u00b7 '}
-            {unstagedFiles.length > 0 && `${unstagedFiles.length} modified`}
+            {unstagedFiles.length > 0 && `${unstagedFiles.length} 已修改`}
             {(stagedFiles.length > 0 || unstagedFiles.length > 0) && untrackedFiles.length > 0 && ' \u00b7 '}
-            {untrackedFiles.length > 0 && `${untrackedFiles.length} untracked`}
+            {untrackedFiles.length > 0 && `${untrackedFiles.length} 未跟踪`}
           </span>
         )}
       </div>
       <div className="flex items-center gap-3">
-        {isLoading && <span className="animate-pulse">Refreshing...</span>}
+        {isLoading && <span className="animate-pulse">刷新中...</span>}
         <span className="truncate max-w-[300px] opacity-70" title={repoPath || ''}>
           {repoPath}
         </span>

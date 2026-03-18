@@ -70,15 +70,15 @@ function buildMenu(): void {
       ]
     },
     {
-      label: 'File',
+      label: '文件',
       submenu: [
         {
-          label: 'Open Repository...',
+          label: '打开仓库...',
           accelerator: 'CmdOrCtrl+O',
           click: async () => {
             const result = await dialog.showOpenDialog({
               properties: ['openDirectory'],
-              title: 'Open Git Repository'
+              title: '打开 Git 仓库'
             })
             if (!result.canceled && result.filePaths[0]) {
               createWindow(result.filePaths[0])
@@ -87,7 +87,7 @@ function buildMenu(): void {
         },
         { type: 'separator' },
         {
-          label: 'Close Window',
+          label: '关闭窗口',
           accelerator: 'CmdOrCtrl+W',
           click: () => {
             BrowserWindow.getFocusedWindow()?.close()
@@ -96,7 +96,7 @@ function buildMenu(): void {
       ]
     },
     {
-      label: 'Edit',
+      label: '编辑',
       submenu: [
         { role: 'undo' },
         { role: 'redo' },
@@ -108,7 +108,7 @@ function buildMenu(): void {
       ]
     },
     {
-      label: 'View',
+      label: '视图',
       submenu: [
         { role: 'reload' },
         { role: 'forceReload' },
@@ -120,7 +120,7 @@ function buildMenu(): void {
       ]
     },
     {
-      label: 'Window',
+      label: '窗口',
       submenu: [
         { role: 'minimize' },
         { role: 'zoom' },
@@ -136,7 +136,7 @@ function buildMenu(): void {
 ipcMain.handle('dialog:openDirectory', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory'],
-    title: 'Open Git Repository'
+    title: '打开 Git 仓库'
   })
   if (!result.canceled && result.filePaths[0]) {
     return result.filePaths[0]

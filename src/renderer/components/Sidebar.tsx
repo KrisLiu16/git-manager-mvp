@@ -1,11 +1,11 @@
 import { useGitStore, ViewTab } from '../stores/gitStore'
 
 const tabs: { id: ViewTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'changes', label: 'Changes', icon: <ChangesIcon /> },
-  { id: 'log', label: 'Log', icon: <LogIcon /> },
-  { id: 'branches', label: 'Branches', icon: <BranchIcon /> },
-  { id: 'stash', label: 'Stash', icon: <StashIcon /> },
-  { id: 'remotes', label: 'Remotes', icon: <RemoteIcon /> }
+  { id: 'changes', label: '变更', icon: <ChangesIcon /> },
+  { id: 'log', label: '日志', icon: <LogIcon /> },
+  { id: 'branches', label: '分支', icon: <BranchIcon /> },
+  { id: 'stash', label: '暂存', icon: <StashIcon /> },
+  { id: 'remotes', label: '远程', icon: <RemoteIcon /> }
 ]
 
 export function Sidebar() {

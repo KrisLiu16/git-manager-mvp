@@ -19,12 +19,12 @@ export function StashPanel() {
   return (
     <div className="flex-1 flex flex-col h-full">
       <div className="px-3 py-2 bg-bg-secondary border-b border-border flex items-center justify-between">
-        <span className="text-xs font-medium">Stash ({stashes.length})</span>
+        <span className="text-xs font-medium">暂存 ({stashes.length})</span>
         <button
           onClick={() => setShowSave(!showSave)}
           className="text-xs text-text-accent hover:text-text-link px-2 py-0.5 rounded hover:bg-bg-hover"
         >
-          + Stash Changes
+          + 暂存变更
         </button>
       </div>
 
@@ -33,7 +33,7 @@ export function StashPanel() {
           <input
             value={stashMessage}
             onChange={(e) => setStashMessage(e.target.value)}
-            placeholder="Stash message (optional)..."
+            placeholder="暂存信息（可选）..."
             className="flex-1 bg-bg-primary border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-border-focus"
             onKeyDown={(e) => e.key === 'Enter' && handleSave()}
             autoFocus
@@ -42,7 +42,7 @@ export function StashPanel() {
             onClick={handleSave}
             className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded"
           >
-            Save
+            保存
           </button>
         </div>
       )}
@@ -59,7 +59,7 @@ export function StashPanel() {
         ))}
         {stashes.length === 0 && (
           <div className="p-4 text-center text-text-secondary text-xs">
-            No stashes
+            暂无暂存
           </div>
         )}
       </div>
@@ -94,19 +94,19 @@ function StashRow({ stash, onPop, onApply, onDrop }: {
               onClick={onApply}
               className="text-[10px] text-text-accent hover:text-text-link px-1.5 py-0.5 rounded hover:bg-bg-hover"
             >
-              Apply
+              应用
             </button>
             <button
               onClick={onPop}
               className="text-[10px] text-status-added hover:text-green-400 px-1.5 py-0.5 rounded hover:bg-bg-hover"
             >
-              Pop
+              弹出
             </button>
             <button
               onClick={onDrop}
               className="text-[10px] text-status-deleted hover:text-red-400 px-1.5 py-0.5 rounded hover:bg-bg-hover"
             >
-              Drop
+              删除
             </button>
           </div>
         )}

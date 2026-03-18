@@ -5,22 +5,22 @@ export function Toolbar() {
 
   return (
     <div className="titlebar-no-drag flex items-center gap-1 text-xs">
-      <ToolbarButton onClick={doFetch} disabled={isLoading} title="Fetch">
+      <ToolbarButton onClick={doFetch} disabled={isLoading} title="拉取信息">
         <FetchIcon />
-        <span>Fetch</span>
+        <span>拉取信息</span>
       </ToolbarButton>
-      <ToolbarButton onClick={doPull} disabled={isLoading} title="Pull">
+      <ToolbarButton onClick={doPull} disabled={isLoading} title="拉取">
         <PullIcon />
-        <span>Pull</span>
+        <span>拉取</span>
       </ToolbarButton>
-      <ToolbarButton onClick={doPush} disabled={isLoading} title="Push">
+      <ToolbarButton onClick={doPush} disabled={isLoading} title="推送">
         <PushIcon />
-        <span>Push</span>
+        <span>推送</span>
       </ToolbarButton>
       <div className="w-px h-4 bg-border mx-1" />
-      <ToolbarButton onClick={refreshAll} disabled={isLoading} title="Refresh">
+      <ToolbarButton onClick={refreshAll} disabled={isLoading} title="刷新">
         <RefreshIcon />
-        <span>Refresh</span>
+        <span>刷新</span>
       </ToolbarButton>
     </div>
   )

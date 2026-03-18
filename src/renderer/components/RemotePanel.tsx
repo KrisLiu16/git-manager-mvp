@@ -11,7 +11,7 @@ export function RemotePanel() {
   return (
     <div className="flex-1 flex flex-col h-full">
       <div className="px-3 py-2 bg-bg-secondary border-b border-border">
-        <span className="text-xs font-medium">Remotes ({remotes.length})</span>
+        <span className="text-xs font-medium">远程 ({remotes.length})</span>
       </div>
       <div className="flex-1 overflow-y-auto">
         {remotes.map((remote: any) => (
@@ -31,7 +31,7 @@ export function RemotePanel() {
         ))}
         {remotes.length === 0 && (
           <div className="p-4 text-center text-text-secondary text-xs">
-            No remotes configured
+            未配置远程仓库
           </div>
         )}
       </div>

@@ -10,7 +10,7 @@ export function WelcomeScreen() {
       if (isRepo) {
         setRepoPath(path)
       } else {
-        setError(`"${path}" is not a git repository`)
+        setError(`"${path}" 不是一个 Git 仓库`)
       }
     }
   }
@@ -30,15 +30,15 @@ export function WelcomeScreen() {
             </svg>
           </div>
           <h1 className="text-xl font-light text-text-primary mb-2">Git Manager</h1>
-          <p className="text-text-secondary mb-8 text-sm">Open a Git repository to get started</p>
+          <p className="text-text-secondary mb-8 text-sm">打开一个 Git 仓库开始使用</p>
           <button
             onClick={handleOpen}
             className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition-colors"
           >
-            Open Repository
+            打开仓库
           </button>
           <p className="text-text-secondary mt-4 text-xs">
-            or use File &rarr; Open Repository (Cmd+O)
+            或使用 文件 &rarr; 打开仓库 (Cmd+O)
           </p>
         </div>
       </div>

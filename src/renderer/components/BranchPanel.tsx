@@ -28,12 +28,12 @@ export function BranchPanel() {
   return (
     <div className="flex-1 flex flex-col h-full">
       <div className="px-3 py-2 bg-bg-secondary border-b border-border flex items-center justify-between">
-        <span className="text-xs font-medium">Branches</span>
+        <span className="text-xs font-medium">分支</span>
         <button
           onClick={() => setShowCreate(!showCreate)}
           className="text-xs text-text-accent hover:text-text-link px-2 py-0.5 rounded hover:bg-bg-hover"
         >
-          + New Branch
+          + 新建分支
         </button>
       </div>
 
@@ -42,7 +42,7 @@ export function BranchPanel() {
           <input
             value={newBranchName}
             onChange={(e) => setNewBranchName(e.target.value)}
-            placeholder="Branch name..."
+            placeholder="分支名称..."
             className="flex-1 bg-bg-primary border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-border-focus"
             onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
             autoFocus
@@ -52,7 +52,7 @@ export function BranchPanel() {
             disabled={!newBranchName.trim()}
             className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs rounded"
           >
-            Create
+            创建
           </button>
         </div>
       )}
@@ -60,7 +60,7 @@ export function BranchPanel() {
       <div className="flex-1 overflow-y-auto">
         {/* Local branches */}
         <div className="px-3 py-1.5 bg-bg-secondary border-b border-border text-[10px] text-text-secondary uppercase tracking-wider">
-          Local ({localBranches.length})
+          本地 ({localBranches.length})
         </div>
         {localBranches.map((branch) => (
           <BranchRow
@@ -75,7 +75,7 @@ export function BranchPanel() {
 
         {/* Remote branches */}
         <div className="px-3 py-1.5 bg-bg-secondary border-b border-border text-[10px] text-text-secondary uppercase tracking-wider mt-2">
-          Remote ({remoteBranches.length})
+          远程 ({remoteBranches.length})
         </div>
         {remoteBranches.map((branch) => (
           <BranchRow
@@ -126,18 +126,18 @@ function BranchRow({ branch, isCurrent, onSwitch, onMerge, onDelete }: {
             <button
               onClick={(e) => { e.stopPropagation(); onMerge() }}
               className="text-[10px] text-text-accent hover:text-text-link px-1.5 py-0.5 rounded hover:bg-bg-hover"
-              title="Merge into current branch"
+              title="合并到当前分支"
             >
-              Merge
+              合并
             </button>
           )}
           {onDelete && (
             <button
               onClick={(e) => { e.stopPropagation(); onDelete() }}
               className="text-[10px] text-status-deleted hover:text-red-400 px-1.5 py-0.5 rounded hover:bg-bg-hover"
-              title="Delete branch"
+              title="删除分支"
             >
-              Delete
+              删除
             </button>
           )}
         </div>

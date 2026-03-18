@@ -20,7 +20,7 @@ export function DiffView() {
   if (!diffContent) {
     return (
       <div className="h-full flex items-center justify-center text-text-secondary text-sm">
-        {selectedFile ? 'No diff available' : 'Select a file to view diff'}
+        {selectedFile ? '无差异内容' : '选择文件以查看差异'}
       </div>
     )
   }
@@ -35,7 +35,7 @@ export function DiffView() {
               <StatusBadge status={selectedFile.status} />
               <span className="text-text-primary">{selectedFile.path}</span>
               <span className="text-text-secondary">
-                ({selectedFile.staged ? 'staged' : 'working tree'})
+                ({selectedFile.staged ? '已暂存' : '工作区'})
               </span>
             </>
           )}
@@ -47,7 +47,7 @@ export function DiffView() {
               diffMode === 'unified' ? 'bg-bg-active text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
             }`}
           >
-            Unified
+            统一视图
           </button>
           <button
             onClick={() => setDiffMode('side-by-side')}
@@ -55,7 +55,7 @@ export function DiffView() {
               diffMode === 'side-by-side' ? 'bg-bg-active text-white' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
             }`}
           >
-            Side by Side
+            并排视图
           </button>
         </div>
       </div>
@@ -78,12 +78,12 @@ function StatusBadge({ status }: { status: string }) {
     untracked: 'bg-status-untracked'
   }
   const labels: Record<string, string> = {
-    added: 'Added',
-    modified: 'Modified',
-    deleted: 'Deleted',
-    renamed: 'Renamed',
-    conflict: 'Conflict',
-    untracked: 'New'
+    added: '新增',
+    modified: '已修改',
+    deleted: '已删除',
+    renamed: '已重命名',
+    conflict: '冲突',
+    untracked: '新文件'
   }
   return (
     <span className={`${colors[status]} text-white text-[10px] px-1.5 py-0.5 rounded`}>

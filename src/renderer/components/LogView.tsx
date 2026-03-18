@@ -15,7 +15,7 @@ export function LogView() {
       {/* Commit list */}
       <div className="w-[480px] min-w-[350px] border-r border-border flex flex-col">
         <div className="px-3 py-2 bg-bg-secondary border-b border-border text-xs font-medium">
-          Commit History ({commits.length})
+          提交历史 ({commits.length})
         </div>
         <div className="flex-1 overflow-y-auto">
           {commits.map((commit) => (
@@ -27,7 +27,7 @@ export function LogView() {
           ))}
           {commits.length === 0 && (
             <div className="p-4 text-center text-text-secondary text-xs">
-              No commits yet
+              暂无提交记录
             </div>
           )}
         </div>
@@ -39,7 +39,7 @@ export function LogView() {
           <DiffPanel diffContent={diffContent} diffMode={diffMode} setDiffMode={setDiffMode} />
         ) : (
           <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">
-            Select a commit to view changes
+            选择一个提交以查看变更
           </div>
         )}
       </div>
@@ -101,19 +101,19 @@ function DiffPanel({ diffContent, diffMode, setDiffMode }: {
   return (
     <>
       <div className="flex items-center justify-between px-3 py-1.5 bg-bg-secondary border-b border-border">
-        <span className="text-xs text-text-secondary">Commit Diff</span>
+        <span className="text-xs text-text-secondary">提交差异</span>
         <div className="flex items-center gap-1 text-xs">
           <button
             onClick={() => setDiffMode('unified')}
             className={`px-2 py-0.5 rounded ${diffMode === 'unified' ? 'bg-bg-active text-white' : 'text-text-secondary hover:bg-bg-hover'}`}
           >
-            Unified
+            统一视图
           </button>
           <button
             onClick={() => setDiffMode('side-by-side')}
             className={`px-2 py-0.5 rounded ${diffMode === 'side-by-side' ? 'bg-bg-active text-white' : 'text-text-secondary hover:bg-bg-hover'}`}
           >
-            Side by Side
+            并排视图
           </button>
         </div>
       </div>
@@ -133,12 +133,12 @@ function formatRelativeTime(date: Date): string {
   if (days > 30) {
     return date.toLocaleDateString()
   } else if (days > 0) {
-    return `${days}d ago`
+    return `${days}天前`
   } else if (hours > 0) {
-    return `${hours}h ago`
+    return `${hours}小时前`
   } else if (minutes > 0) {
-    return `${minutes}m ago`
+    return `${minutes}分钟前`
   } else {
-    return 'just now'
+    return '刚刚'
   }
 }

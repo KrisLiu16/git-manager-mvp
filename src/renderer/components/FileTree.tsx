@@ -23,43 +23,43 @@ export function FileTree() {
     <div className="flex-1 overflow-y-auto select-none" onClick={closeContextMenu}>
       {/* Staged Files */}
       <FileGroup
-        title="Staged Changes"
+        title="已暂存的变更"
         files={stagedFiles}
         badge={stagedFiles.length}
         badgeColor="bg-status-added"
         selectedFile={selectedFile}
         onSelect={selectFileAndShowDiff}
         onContextMenu={handleContextMenu}
-        action={{ label: 'Unstage All', onClick: unstageAll }}
+        action={{ label: '全部取消暂存', onClick: unstageAll }}
       />
 
       {/* Unstaged Files */}
       <FileGroup
-        title="Changes"
+        title="未暂存的变更"
         files={unstagedFiles}
         badge={unstagedFiles.length}
         badgeColor="bg-status-modified"
         selectedFile={selectedFile}
         onSelect={selectFileAndShowDiff}
         onContextMenu={handleContextMenu}
-        action={{ label: 'Stage All', onClick: stageAll }}
+        action={{ label: '全部暂存', onClick: stageAll }}
       />
 
       {/* Untracked Files */}
       <FileGroup
-        title="Untracked Files"
+        title="未跟踪的文件"
         files={untrackedFiles}
         badge={untrackedFiles.length}
         badgeColor="bg-status-untracked"
         selectedFile={selectedFile}
         onSelect={selectFileAndShowDiff}
         onContextMenu={handleContextMenu}
-        action={{ label: 'Stage All', onClick: stageAll }}
+        action={{ label: '全部暂存', onClick: stageAll }}
       />
 
       {stagedFiles.length === 0 && unstagedFiles.length === 0 && untrackedFiles.length === 0 && (
         <div className="p-4 text-center text-text-secondary text-xs">
-          No changes detected
+          未检测到变更
         </div>
       )}
 
@@ -198,15 +198,15 @@ function ContextMenu({
         style={{ left: x, top: y }}
       >
         {file.staged ? (
-          <div className="context-menu-item" onClick={onUnstage}>Unstage</div>
+          <div className="context-menu-item" onClick={onUnstage}>取消暂存</div>
         ) : (
-          <div className="context-menu-item" onClick={onStage}>Stage</div>
+          <div className="context-menu-item" onClick={onStage}>暂存</div>
         )}
         {file.status !== 'untracked' && !file.staged && (
           <>
             <div className="context-menu-separator" />
             <div className="context-menu-item text-status-deleted" onClick={onDiscard}>
-              Discard Changes
+              丢弃变更
             </div>
           </>
         )}
