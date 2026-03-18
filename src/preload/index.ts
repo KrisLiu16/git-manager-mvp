@@ -32,7 +32,8 @@ const gitApi = {
   showOriginal: (repoPath: string, filePath: string, ref?: string) => ipcRenderer.invoke('git:showOriginal', repoPath, filePath, ref),
   showCommitFile: (repoPath: string, hash: string, filePath: string) => ipcRenderer.invoke('git:showCommitFile', repoPath, hash, filePath),
   commitFiles: (repoPath: string, hash: string) => ipcRenderer.invoke('git:commitFiles', repoPath, hash),
-  rawCommand: (repoPath: string, command: string) => ipcRenderer.invoke('git:rawCommand', repoPath, command)
+  rawCommand: (repoPath: string, command: string) => ipcRenderer.invoke('git:rawCommand', repoPath, command),
+  graphLog: (repoPath: string, maxCount?: number) => ipcRenderer.invoke('git:graphLog', repoPath, maxCount)
 }
 
 const windowApi = {

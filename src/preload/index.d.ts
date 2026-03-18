@@ -32,6 +32,17 @@ interface GitApi {
   showCommitFile(repoPath: string, hash: string, filePath: string): Promise<string>
   commitFiles(repoPath: string, hash: string): Promise<{ status: string; path: string }[]>
   rawCommand(repoPath: string, command: string): Promise<string>
+  graphLog(repoPath: string, maxCount?: number): Promise<GraphCommit[]>
+}
+
+interface GraphCommit {
+  hash: string
+  parents: string[]
+  author_name: string
+  author_email: string
+  date: string
+  message: string
+  refs: string
 }
 
 interface WindowApi {

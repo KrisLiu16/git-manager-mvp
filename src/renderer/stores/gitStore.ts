@@ -92,6 +92,14 @@ interface GitStore {
   error: string | null
   blameCache: Record<string, BlameInfo[]>
 
+  // Commit file diff shown in main DiffView (set from bottom panel)
+  commitDiffOriginal: string
+  commitDiffModified: string
+  commitDiffPath: string | null
+  commitDiffHash: string | null
+  showCommitFileDiff: (hash: string, file: { status: string; path: string }) => Promise<void>
+  clearCommitDiff: () => void
+
   // Flat "active project" fields — zustand-reactive, synced on every update
   repoPath: string | null
   currentBranch: string
@@ -269,6 +277,28 @@ export const useGitStore = create<GitStore>((set, get) => {
     stashes: [],
     remotes: [],
     lastFetchAt: null,
+
+    // Commit diff in main view
+    commitDiffOriginal: '',
+    commitDiffModified: '',
+    commitDiffPath: null,
+    commitDiffHash: null,
+
+    showCommitFileDiff: async (hash, file) => {
+      const proj = getProject()
+      if (!proj) return
+      try {
+        const parentRef = `${hash}~1`
+        const orig = file.status === 'A' ? '' : await window.git.showCommitFile(proj.repoPath, parentRef, file.path)
+        const mod = file.status === 'D' ? '' : await window.git.showCommitFile(proj.repoPath, hash, file.path)
+        set({ commitDiffOriginal: orig, commitDiffModified: mod, commitDiffPath: file.path, commitDiffHash: hash })
+        updateProject({ selectedFile: null }) // clear working-tree selection
+      } catch (err: any) {
+        set({ error: err.message })
+      }
+    },
+
+    clearCommitDiff: () => set({ commitDiffOriginal: '', commitDiffModified: '', commitDiffPath: null, commitDiffHash: null }),
 
     // ---- Multi-project ----
     addProject: (path) => {

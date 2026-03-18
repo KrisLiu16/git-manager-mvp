@@ -233,6 +233,22 @@ export function registerGitHandlers(): void {
     return git.raw(['blame', '--porcelain', filePath])
   })
 
+  // Log with parent info for graph rendering
+  ipcMain.handle('git:graphLog', async (_event, repoPath: string, maxCount: number = 200) => {
+    const git = getGit(repoPath)
+    const result = await git.raw([
+      'log', '--all', `--max-count=${maxCount}`,
+      '--format=%H|%P|%an|%ae|%aI|%s|%D'
+    ])
+    return result.trim().split('\n').filter(Boolean).map(line => {
+      const [hash, parents, author_name, author_email, date, message, refs] = line.split('|')
+      return {
+        hash, parents: parents ? parents.split(' ') : [],
+        author_name, author_email, date, message, refs: refs || ''
+      }
+    })
+  })
+
   // Raw git command (for terminal)
   ipcMain.handle('git:rawCommand', async (_event, repoPath: string, command: string) => {
     const git = getGit(repoPath)
