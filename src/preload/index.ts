@@ -41,7 +41,8 @@ const gitApi = {
   deleteTag: (repoPath: string, name: string) => ipcRenderer.invoke('git:deleteTag', repoPath, name),
   renameBranch: (repoPath: string, oldName: string, newName: string) => ipcRenderer.invoke('git:renameBranch', repoPath, oldName, newName),
   rebaseBranch: (repoPath: string, onto: string) => ipcRenderer.invoke('git:rebaseBranch', repoPath, onto),
-  logFile: (repoPath: string, filePath: string, maxCount?: number) => ipcRenderer.invoke('git:logFile', repoPath, filePath, maxCount)
+  logFile: (repoPath: string, filePath: string, maxCount?: number) => ipcRenderer.invoke('git:logFile', repoPath, filePath, maxCount),
+  aheadBehind: (repoPath: string) => ipcRenderer.invoke('git:aheadBehind', repoPath)
 }
 
 const windowApi = {

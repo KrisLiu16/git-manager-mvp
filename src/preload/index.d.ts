@@ -41,6 +41,7 @@ interface GitApi {
   renameBranch(repoPath: string, oldName: string, newName: string): Promise<void>
   rebaseBranch(repoPath: string, onto: string): Promise<void>
   logFile(repoPath: string, filePath: string, maxCount?: number): Promise<any>
+  aheadBehind(repoPath: string): Promise<{ ahead: number; behind: number }>
 }
 
 interface GraphCommit {

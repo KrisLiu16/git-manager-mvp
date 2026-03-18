@@ -46,6 +46,12 @@ export function ProjectTabs() {
               {project.currentBranch && (
                 <span className="text-[10px] text-text-secondary truncate flex-shrink-0">
                   {project.currentBranch}
+                  {(project.ahead > 0 || project.behind > 0) && (
+                    <span className="ml-0.5 text-[9px]">
+                      {project.ahead > 0 && `↑${project.ahead}`}
+                      {project.behind > 0 && `↓${project.behind}`}
+                    </span>
+                  )}
                 </span>
               )}
               {changesCount > 0 && (

@@ -77,22 +77,55 @@ export function registerGitHandlers(): void {
     }
   })
 
-  // Push
+  // Push — auto set upstream for new branches
   ipcMain.handle('git:push', async (_event, repoPath: string, remote?: string, branch?: string) => {
     const git = getGit(repoPath)
-    await git.push(remote || 'origin', branch)
+    const r = remote || 'origin'
+    try {
+      await git.push(r, branch)
+    } catch (err: any) {
+      if (err.message?.includes('no upstream branch') || err.message?.includes('has no upstream')) {
+        // Auto set upstream
+        const status = await git.status()
+        const currentBranch = status.current || branch
+        await git.push(['-u', r, currentBranch!])
+      } else {
+        throw err
+      }
+    }
   })
 
   // Pull
   ipcMain.handle('git:pull', async (_event, repoPath: string, remote?: string, branch?: string) => {
     const git = getGit(repoPath)
-    await git.pull(remote || 'origin', branch)
+    try {
+      await git.pull(remote || 'origin', branch)
+    } catch (err: any) {
+      if (err.message?.includes('no tracking information') || err.message?.includes('no upstream')) {
+        // Try pull with current branch name
+        const status = await git.status()
+        await git.pull(remote || 'origin', status.current || undefined)
+      } else {
+        throw err
+      }
+    }
   })
 
   // Fetch
   ipcMain.handle('git:fetch', async (_event, repoPath: string) => {
     const git = getGit(repoPath)
-    await git.fetch()
+    await git.fetch(['--all'])
+  })
+
+  // Ahead/behind count relative to remote tracking branch
+  ipcMain.handle('git:aheadBehind', async (_event, repoPath: string) => {
+    const git = getGit(repoPath)
+    try {
+      const status = await git.status()
+      return { ahead: status.ahead || 0, behind: status.behind || 0 }
+    } catch {
+      return { ahead: 0, behind: 0 }
+    }
   })
 
   // Log

@@ -3,7 +3,8 @@ import { useGitStore } from '../stores/gitStore'
 export function StatusBar() {
   const {
     repoPath, currentBranch, isLoading, lastFetchAt,
-    stagedFiles, unstagedFiles, untrackedFiles
+    stagedFiles, unstagedFiles, untrackedFiles,
+    ahead, behind
   } = useGitStore()
 
   const total = stagedFiles.length + unstagedFiles.length + untrackedFiles.length
@@ -15,6 +16,13 @@ export function StatusBar() {
         <span className="flex items-center gap-1">
           <BranchSmallIcon />
           {currentBranch || '无分支'}
+          {/* Ahead/behind indicators */}
+          {(ahead > 0 || behind > 0) && (
+            <span className="flex items-center gap-0.5 ml-0.5 text-[10px]">
+              {ahead > 0 && <span title={`领先远程 ${ahead} 个提交`}>↑{ahead}</span>}
+              {behind > 0 && <span title={`落后远程 ${behind} 个提交`}>↓{behind}</span>}
+            </span>
+          )}
         </span>
         {total > 0 && (
           <span>

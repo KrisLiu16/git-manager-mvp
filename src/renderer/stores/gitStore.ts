@@ -67,6 +67,8 @@ export interface ProjectState {
   stashes: StashEntry[]
   remotes: RemoteInfo[]
   lastFetchAt: number | null
+  ahead: number
+  behind: number
 }
 
 function createProjectState(repoPath: string): ProjectState {
@@ -75,7 +77,8 @@ function createProjectState(repoPath: string): ProjectState {
     repoPath, name, currentBranch: '', activeTab: 'changes',
     selectedFile: null, diffContent: '', commitMessage: '', amendMode: false,
     stagedFiles: [], unstagedFiles: [], untrackedFiles: [],
-    commits: [], branches: [], stashes: [], remotes: [], lastFetchAt: null
+    commits: [], branches: [], stashes: [], remotes: [], lastFetchAt: null,
+    ahead: 0, behind: 0
   }
 }
 
@@ -116,6 +119,8 @@ interface GitStore {
   stashes: StashEntry[]
   remotes: RemoteInfo[]
   lastFetchAt: number | null
+  ahead: number
+  behind: number
 
   // Multi-project ops
   addProject: (path: string) => void
@@ -229,7 +234,9 @@ function flattenActiveProject(projects: ProjectState[], index: number) {
     branches: p.branches,
     stashes: p.stashes,
     remotes: p.remotes,
-    lastFetchAt: p.lastFetchAt
+    lastFetchAt: p.lastFetchAt,
+    ahead: p.ahead,
+    behind: p.behind
   }
 }
 
@@ -285,6 +292,8 @@ export const useGitStore = create<GitStore>((set, get) => {
     stashes: [],
     remotes: [],
     lastFetchAt: null,
+    ahead: 0,
+    behind: 0,
 
     // Commit diff in main view
     commitDiffOriginal: '',
@@ -358,10 +367,16 @@ export const useGitStore = create<GitStore>((set, get) => {
       const proj = getProject()
       if (!proj) return
       try {
-        const status = await window.git.status(proj.repoPath)
+        const [status, ab] = await Promise.all([
+          window.git.status(proj.repoPath),
+          window.git.aheadBehind(proj.repoPath)
+        ])
         const { staged, unstaged, untracked } = parseStatusFiles(status)
         const currentBranch = status.current || 'HEAD'
-        updateProject({ stagedFiles: staged, unstagedFiles: unstaged, untrackedFiles: untracked, currentBranch })
+        updateProject({
+          stagedFiles: staged, unstagedFiles: unstaged, untrackedFiles: untracked,
+          currentBranch, ahead: ab.ahead, behind: ab.behind
+        })
       } catch (err: any) {
         set({ error: err.message })
       }
