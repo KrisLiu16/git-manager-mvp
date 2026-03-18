@@ -1,14 +1,15 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useGitStore, BranchInfo } from '../stores/gitStore'
 import { ContextMenu, MenuItem } from './ContextMenu'
 import { InputDialog } from './InputDialog'
 import { ConfirmDialog } from './ConfirmDialog'
+import { GitGraph, ICommitItem } from 'git-graph-svg'
 
 type BottomTab = 'log' | 'terminal'
 
 interface GraphCommit {
   hash: string; parents: string[]; author_name: string; author_email: string
-  date: string; message: string; refs: string; col: number; graphCols: number
+  date: string; message: string; refs: string
 }
 
 export function BottomPanel({ height, collapsed, onToggle }: {
@@ -68,6 +69,32 @@ function LogPanel() {
   const [resetMode, setResetMode] = useState<'soft' | 'mixed' | 'hard'>('mixed')
   const [renameDialog, setRenameDialog] = useState<{ branchName: string } | null>(null)
 
+  const graphScrollRef = useRef<HTMLDivElement>(null)
+  const listScrollRef = useRef<HTMLDivElement>(null)
+  const syncing = useRef(false)
+
+  const syncScroll = useCallback((source: 'graph' | 'list') => {
+    if (syncing.current) return
+    syncing.current = true
+    const src = source === 'graph' ? graphScrollRef.current : listScrollRef.current
+    const dst = source === 'graph' ? listScrollRef.current : graphScrollRef.current
+    if (src && dst) dst.scrollTop = src.scrollTop
+    syncing.current = false
+  }, [])
+
+  const ROW_HEIGHT = 24
+
+  const gitGraphCommits = useMemo((): ICommitItem[] => {
+    const commits = search.trim() ? [] : graphCommits
+    return commits.map(c => ({
+      id: c.hash,
+      message: c.message,
+      author: c.author_name,
+      date: c.date,
+      parents: c.parents
+    }))
+  }, [graphCommits, search])
+
   useEffect(() => {
     refreshBranches()
     loadGraph()
@@ -77,7 +104,7 @@ function LogPanel() {
     if (!repoPath) return
     try {
       const raw = await window.git.graphLog(repoPath, 300)
-      setGraphCommits(assignColumns(raw))
+      setGraphCommits(raw)
     } catch { setGraphCommits([]) }
   }
 
@@ -163,31 +190,48 @@ function LogPanel() {
         </div>
 
         {/* Commit rows with git graph */}
-        <div className="flex-1 overflow-y-auto">
-          {filteredCommits.map(c => (
-            <div key={c.hash}
-              className={`flex items-center border-b border-border/30 cursor-pointer text-[11px] ${
-                selectedHash === c.hash ? 'bg-bg-active' : 'hover:bg-bg-hover'
-              }`}
-              onClick={() => onSelectCommit(c)}
-              onContextMenu={e => { e.preventDefault(); setCommitCtx({ x: e.clientX, y: e.clientY, commit: c }) }}>
-              {/* Graph column */}
-              <GraphCell commit={c} allCommits={filteredCommits} />
-              {/* Message */}
-              <span className="flex-1 min-w-0 truncate text-text-primary px-1">{c.message}</span>
-              {/* Refs */}
-              {c.refs && c.refs.split(',').map(r => r.trim()).filter(Boolean).map((ref, i) => (
-                <span key={i} className="text-[9px] bg-bg-tertiary text-text-accent px-1 rounded flex-shrink-0 mr-0.5">
-                  {ref.replace('HEAD -> ', '').replace('origin/', '⬆')}
-                </span>
-              ))}
-              <span className="text-text-secondary flex-shrink-0 w-[65px] truncate text-right text-[10px] pr-1">{c.author_name}</span>
-              <span className="text-text-secondary flex-shrink-0 w-[85px] text-right text-[10px] pr-2">
-                {new Date(c.date).toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
-              </span>
+        <div className="flex-1 flex overflow-hidden">
+          {/* Graph column - synced scroll */}
+          {!search.trim() && gitGraphCommits.length > 0 && (
+            <div ref={graphScrollRef} className="overflow-y-auto overflow-x-hidden flex-shrink-0 scrollbar-hide"
+              onScroll={() => syncScroll('graph')}>
+              <GitGraph
+                commits={gitGraphCommits}
+                rowHeight={ROW_HEIGHT}
+                laneWidth={16}
+                colorPalette={['#569cd6', '#4ec9b0', '#ce9178', '#c586c0', '#dcdcaa', '#9cdcfe', '#d7ba7d', '#b5cea8']}
+                padding={{ left: 8, right: 8, top: 0, bottom: 0 }}
+                style={{ display: 'block' }}
+              />
             </div>
-          ))}
-          {filteredCommits.length === 0 && <div className="p-3 text-center text-text-secondary text-xs">暂无匹配提交</div>}
+          )}
+          {/* Commit rows */}
+          <div ref={listScrollRef} className="flex-1 overflow-y-auto min-w-0"
+            onScroll={() => syncScroll('list')}>
+            {filteredCommits.map(c => (
+              <div key={c.hash}
+                className={`flex items-center border-b border-border/30 cursor-pointer text-[11px] ${
+                  selectedHash === c.hash ? 'bg-bg-active' : 'hover:bg-bg-hover'
+                }`}
+                style={{ height: ROW_HEIGHT }}
+                onClick={() => onSelectCommit(c)}
+                onContextMenu={e => { e.preventDefault(); setCommitCtx({ x: e.clientX, y: e.clientY, commit: c }) }}>
+                {/* Message */}
+                <span className="flex-1 min-w-0 truncate text-text-primary px-1">{c.message}</span>
+                {/* Refs */}
+                {c.refs && c.refs.split(',').map(r => r.trim()).filter(Boolean).map((ref, i) => (
+                  <span key={i} className="text-[9px] bg-bg-tertiary text-text-accent px-1 rounded flex-shrink-0 mr-0.5">
+                    {ref.replace('HEAD -> ', '').replace('origin/', '⬆')}
+                  </span>
+                ))}
+                <span className="text-text-secondary flex-shrink-0 w-[65px] truncate text-right text-[10px] pr-1">{c.author_name}</span>
+                <span className="text-text-secondary flex-shrink-0 w-[85px] text-right text-[10px] pr-2">
+                  {new Date(c.date).toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            ))}
+            {filteredCommits.length === 0 && <div className="p-3 text-center text-text-secondary text-xs">暂无匹配提交</div>}
+          </div>
         </div>
       </div>
 
@@ -289,78 +333,7 @@ function LogPanel() {
   )
 }
 
-// ============ GIT GRAPH ============
-
-const GRAPH_COLORS = ['#569cd6', '#4ec9b0', '#ce9178', '#c586c0', '#dcdcaa', '#9cdcfe', '#d7ba7d', '#b5cea8']
-
-/** Assign column positions to commits for graph rendering */
-function assignColumns(commits: any[]): GraphCommit[] {
-  const activeLanes: string[] = [] // hash of commit that "owns" each lane
-
-  return commits.map(c => {
-    let col = activeLanes.indexOf(c.hash)
-    if (col === -1) {
-      // New lane
-      const empty = activeLanes.indexOf('')
-      col = empty >= 0 ? empty : activeLanes.length
-      if (col === activeLanes.length) activeLanes.push(c.hash)
-      else activeLanes[col] = c.hash
-    }
-
-    // This commit's lane is consumed
-    activeLanes[col] = ''
-
-    // First parent continues in same lane
-    if (c.parents.length > 0) {
-      activeLanes[col] = c.parents[0]
-    }
-
-    // Additional parents get new lanes
-    for (let i = 1; i < c.parents.length; i++) {
-      if (!activeLanes.includes(c.parents[i])) {
-        const empty = activeLanes.indexOf('')
-        if (empty >= 0) activeLanes[empty] = c.parents[i]
-        else activeLanes.push(c.parents[i])
-      }
-    }
-
-    // Trim trailing empty lanes
-    while (activeLanes.length > 0 && activeLanes[activeLanes.length - 1] === '') {
-      activeLanes.pop()
-    }
-
-    return { ...c, col, graphCols: Math.max(activeLanes.length, col + 1) }
-  })
-}
-
-function GraphCell({ commit, allCommits }: { commit: GraphCommit; allCommits: GraphCommit[] }) {
-  const width = Math.max(commit.graphCols, 1) * 16 + 8
-  const color = GRAPH_COLORS[commit.col % GRAPH_COLORS.length]
-  const cx = commit.col * 16 + 12
-  const cy = 10
-
-  return (
-    <svg width={Math.min(width, 120)} height={20} className="flex-shrink-0">
-      {/* Vertical line above */}
-      <line x1={cx} y1={0} x2={cx} y2={cy} stroke={color} strokeWidth={1.5} />
-      {/* Vertical line below */}
-      <line x1={cx} y1={cy} x2={cx} y2={20} stroke={color} strokeWidth={1.5} />
-      {/* Merge lines to parent columns */}
-      {commit.parents.slice(1).map((parentHash, i) => {
-        // Find the parent's column
-        const parentCommit = allCommits.find(c => c.hash === parentHash)
-        const parentCol = parentCommit?.col ?? (commit.col + i + 1)
-        const px = parentCol * 16 + 12
-        const pColor = GRAPH_COLORS[parentCol % GRAPH_COLORS.length]
-        return (
-          <line key={i} x1={cx} y1={cy} x2={px} y2={20} stroke={pColor} strokeWidth={1.5} />
-        )
-      })}
-      {/* Dot */}
-      <circle cx={cx} cy={cy} r={3.5} fill={color} />
-    </svg>
-  )
-}
+// ============ GIT GRAPH (rendered via git-graph-svg library) ============
 
 // ============ BRANCH FOLDER TREE (feat/, release/ grouping) ============
 

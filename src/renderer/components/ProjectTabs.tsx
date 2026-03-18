@@ -15,11 +15,13 @@ export function ProjectTabs() {
     }
   }
 
-  if (projects.length === 0) return null
+  if (projects.length === 0) {
+    return <div className="h-9 bg-bg-secondary border-b border-border titlebar-drag" style={{ paddingLeft: 80 }} />
+  }
 
   return (
-    <div className="flex items-center bg-bg-secondary border-b border-border overflow-hidden">
-      <div className="flex-1 flex items-center overflow-x-auto scrollbar-hide">
+    <div className="flex items-center bg-bg-secondary border-b border-border overflow-hidden titlebar-drag h-9" style={{ paddingLeft: 80 }}>
+      <div className="flex-1 flex items-center overflow-x-auto scrollbar-hide titlebar-no-drag">
         {projects.map((project, index) => {
           const isActive = index === activeProjectIndex
           const changesCount = project.stagedFiles.length + project.unstagedFiles.length + project.untrackedFiles.length
@@ -68,7 +70,7 @@ export function ProjectTabs() {
       </div>
       <button
         onClick={handleAddProject}
-        className="px-2 py-1.5 text-text-secondary hover:text-text-primary hover:bg-bg-hover flex-shrink-0"
+        className="px-2 py-1.5 text-text-secondary hover:text-text-primary hover:bg-bg-hover flex-shrink-0 titlebar-no-drag"
         title="打开仓库"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
