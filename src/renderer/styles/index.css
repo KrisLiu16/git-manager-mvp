@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-size: 13px;
+  color: #cccccc;
+  background: #1e1e1e;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555555;
+}
+
+/* Title bar drag region */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Diff view styles */
+.d2h-wrapper {
+  font-size: 12px !important;
+}
+
+.d2h-file-header {
+  background: #2d2d2d !important;
+  border-color: #3c3c3c !important;
+  color: #cccccc !important;
+}
+
+.d2h-file-wrapper {
+  border-color: #3c3c3c !important;
+}
+
+.d2h-code-linenumber {
+  background: #1e1e1e !important;
+  color: #858585 !important;
+  border-color: #3c3c3c !important;
+}
+
+.d2h-code-line {
+  color: #cccccc !important;
+}
+
+.d2h-code-side-line {
+  color: #cccccc !important;
+}
+
+.d2h-del {
+  background-color: #3e1e1e !important;
+  border-color: transparent !important;
+}
+
+.d2h-ins {
+  background-color: #1e3e1e !important;
+  border-color: transparent !important;
+}
+
+.d2h-del .d2h-code-line-ctn {
+  background-color: transparent !important;
+}
+
+.d2h-ins .d2h-code-line-ctn {
+  background-color: transparent !important;
+}
+
+.d2h-info {
+  background: #252526 !important;
+  color: #569cd6 !important;
+  border-color: #3c3c3c !important;
+}
+
+.d2h-emptyplaceholder {
+  background: #252526 !important;
+  border-color: #3c3c3c !important;
+}
+
+.d2h-code-side-emptyplaceholder {
+  background: #252526 !important;
+  border-color: #3c3c3c !important;
+}
+
+.d2h-tag {
+  background: #094771 !important;
+  color: #cccccc !important;
+}
+
+/* Context menu */
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: #2d2d2d;
+  border: 1px solid #454545;
+  border-radius: 4px;
+  padding: 4px 0;
+  min-width: 160px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.context-menu-item {
+  padding: 6px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.context-menu-item:hover {
+  background: #094771;
+}
+
+.context-menu-separator {
+  height: 1px;
+  background: #454545;
+  margin: 4px 0;
+}
